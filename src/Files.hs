@@ -8,6 +8,9 @@ import Data.List.Split (splitOn)
 
 import Database.SQLite.Simple
 
+import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.FilePath
+
 import Group
 import Types
 import Util
@@ -68,18 +71,16 @@ getFile (FileRequest _ file) =
     where file' = ("data/"++) . concat $ splitOn "../" file
 
 -- | upload a file as a User or Group
--- TODO: don't allow multiple insertions in the db
--- TODO: allow paths etc.
 uploadFile :: PushRequest -> IO (ApiResponse String)
 uploadFile (PushRequest user Nothing file) = do
+    createDirectoryIfMissing True (dropFileName filename)
     writeFile filename (contents file)
     con <- open "data/users.db"
     uId <- getId user
     execute con (queryU user) (uId, filename)
     return $ success (cleanFilename filename)
     where uName = userName user
-          filename = ("data/"++) . concat $
-              splitOn "../" (uName ++ "/" ++ name file)
+          filename = sanitizeFilename file user
 uploadFile (PushRequest _ (Just group) file) = do
     writeFile filename (contents file)
     con <- open "data/users.db"
@@ -87,8 +88,7 @@ uploadFile (PushRequest _ (Just group) file) = do
     execute con (queryU group) (gId, filename)
     return $ success (cleanFilename filename)
     where gName = groupName group
-          filename = ("data/"++) . concat $
-              splitOn "../" (gName ++ "/" ++ name file)
+          filename = sanitizeFilename file group
 
 -- | list all files available to a user
 listFiles :: User -> IO (ApiResponse [FileList])
@@ -109,3 +109,14 @@ cleanFilename :: FilePath -> FilePath
 cleanFilename path
     | "data/" `isPrefixOf` path = drop 5 path
     | otherwise = path
+
+-- | prevent directory transversal and add relative prefix
+sanitizeFilename :: Owner o => File -> o -> FilePath
+sanitizeFilename file owner = "data" </> getName owner </>
+    foldr1 (</>) [dropSlash d | d <- splitOn ".." $ name file, not $ null d]
+    where dropSlash ('/':s) = s
+          dropSlash s = s
+
+-- | does a file as requested by a user exist?
+fileExisting :: Owner o => File -> o -> IO Bool
+fileExisting file owner = doesFileExist $ sanitizeFilename file owner

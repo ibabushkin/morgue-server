@@ -2,9 +2,40 @@
 
 module Types where
 
+import Control.Applicative
+
 import Data.Aeson
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
+import Data.Morgue.AgendaGenerator (AgendaMode(..))
+import Data.Morgue.Format (OutputFormat(..))
+import Data.Morgue.Options
+
+import Text.Read (readMaybe)
+
+-- {{{ FromJSON instances for morgue's datatypes
+instance FromJSON OutputFormat where
+    parseJSON (Object v) = (readMaybe <$> v .: "name") >>= helper
+        where helper (Just n) = return n
+              helper Nothing = fail ""
+
+instance FromJSON AgendaMode where
+    parseJSON (Object v) = (readMaybe <$> v .: "name") >>= helper
+        where helper (Just n) = return n
+              helper Nothing = fail ""
+
+instance FromJSON Options where
+    parseJSON (Object v) = (AgendaOptions <$>
+        (v .: "mode") <*>
+        (v .: "double_spaces") <*>
+        (v .:? "tags") <*>
+        (v .:? "skip_tags") <*>
+        (v .: "num_days") <*>
+        (pure putStrLn) <*>
+        (v .: "format")) <|> (OutlineOptions <$>
+        (pure putStrLn) <*>
+        (v .: "format"))
+-- }}}
 
 -- | a user of our system
 -- {{{
@@ -107,6 +138,17 @@ instance FromJSON GroupAddRequest where
         (v .: "group" >>= parseJSON) <*>
         v .: "username"
     parseJSON _ = mempty
+-- }}}
+
+-- | A request to get an agenda or outline for a set of files
+-- {{{
+data ProcessingRequest = ProcessingRequest User Options [String]
+
+instance FromJSON ProcessingRequest where
+    parseJSON (Object v) = ProcessingRequest <$>
+        (v .: "user" >>= parseJSON) <*>
+        (v .: "options" >>= parseJSON) <*>
+        v .: "files"
 -- }}}
 
 -- | A username and a password

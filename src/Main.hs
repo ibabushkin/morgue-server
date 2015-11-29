@@ -15,6 +15,7 @@ import System.Directory (removeFile)
 import API
 import Files
 import Group
+import Morgue
 import Types
 import User
 import Util
@@ -25,66 +26,45 @@ main = simpleHTTP nullConf $ msum
     [ dir "user" userApi
     , dir "group" groupApi
     , dir "files" fileApi
+    , dirGen "morgue" getAgenda
     , e404
     ]
 
 -- | our user-related API functions
 userApi :: ServerPart Response
 userApi = msum
-    [ dir "new" newUser
-    , dir "auth" getCreds
+    [ dirGen "new" insertUser
+    , dirGen "auth" authUser
     , e404
     ]
 
 -- | our group-related API functions
 groupApi :: ServerPart Response
 groupApi = msum
-    [ dir "new" newGroup
-    , dir "add" addUser
+    [ dirGen "new" insertGroup
+    , dirGen "add" addUserToGroup
     , e404
     ]
 
 -- | our file-related API functions
 fileApi :: ServerPart Response
 fileApi = msum
-    [ dir "browse" browse
-    , dir "pull" pullFile
-    , dir "push" pushFile
+    [ dirGen "browse" listFiles
+    , dirGen "pull" getFile
+    , dirGen "push" uploadFile
     , e404
     ]
 
--- | create a new user
-newUser :: ServerPart Response
-newUser = apiTemplateIO (verifyPerms insertUser)
+-- | a wrapper around Happstack's `dir` to remove boilerplate
+-- from the generic functions below
+dirGen :: (ToJSON a, FromJSON r, ApiRequest r)
+            => String -> (r -> IO (ApiResponse a)) -> ServerPart Response
+dirGen s resp = dir s (apiGenIO resp)
 
--- | add a group
-newGroup :: ServerPart Response
-newGroup = apiTemplateIO (verifyPerms insertGroup)
-
--- | get your key by providing username and password
-getCreds :: ServerPart Response
-getCreds = apiTemplateIO authUser
-
--- | add a user to a group
-addUser :: ServerPart Response
-addUser = apiTemplateIO (verifyPerms addUserToGroup)
-
--- | get all files' names
-browse :: ServerPart Response
-browse = apiTemplateIO (verifyPerms listFiles)
-
--- | pull a file's contents
-pullFile :: ServerPart Response
-pullFile = apiTemplateIO (verifyPerms getFile)
-
--- | push a file's contents
-pushFile :: ServerPart Response
-pushFile = apiTemplateIO (verifyPerms uploadFile)
-
--- | an API template used for regular data exchange via JSON
-apiTemplate :: (ToJSON r, FromJSON i)
+-- | an API call used for regular data exchange via JSON
+apiGen :: (ToJSON r, FromJSON i)
             => (i -> ServerPart r) -> ServerPart Response
-apiTemplate re = do
+apiGen re = do
     method POST
     decodeBody (defaultBodyPolicy "/tmp/" 0 65536 65536)
     rBody <- liftIO . takeRequestBody =<< askRq
@@ -92,9 +72,10 @@ apiTemplate re = do
       Just b -> re b >>= ok . respond
       Nothing -> ok $ respond (failure BadRequest :: ApiResponse ())
 
--- | a version of the API template above for IO actions 
-apiTemplateIO :: (ToJSON r, FromJSON i) => (i -> IO r) -> ServerPart Response
-apiTemplateIO re = apiTemplate (liftIO . re)
+-- | a version of the API call above for IO actions, includes verification
+apiGenIO :: (ToJSON a, FromJSON r, ApiRequest r)
+              => (r -> IO (ApiResponse a)) -> ServerPart Response
+apiGenIO re = apiGen (liftIO . (verifyPerms re))
 
 -- | verify the validity and integrity of a request
 verifyPerms :: ApiRequest r
@@ -105,7 +86,7 @@ verifyPerms action req = do
       Just err ->  return $ failure err
       Nothing -> action req
 
--- | a temporary solution to determine a part of the API not yet implemented
+-- | Docs Not Found.
 e404 :: ServerPart Response
 e404 = notFound $ toResponse ("404: Not here, stop searching!" :: String)
 
@@ -120,4 +101,3 @@ initDatabase = do
     execute_ con "CREATE TABLE membership (user_id INTEGER, group_id INTEGER)"
     execute_ con "CREATE TABLE user_ownership (user_id INTEGER, path TEXT)"
     execute_ con "CREATE TABLE group_ownership (group_id INTEGER, path TEXT)"
-
