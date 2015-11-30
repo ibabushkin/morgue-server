@@ -31,9 +31,9 @@ instance FromJSON Options where
         (v .:? "tags") <*>
         (v .:? "skip_tags") <*>
         (v .: "num_days") <*>
-        (pure putStrLn) <*>
+        pure putStrLn <*>
         (v .: "format")) <|> (OutlineOptions <$>
-        (pure putStrLn) <*>
+        pure putStrLn <*>
         (v .: "format"))
 -- }}}
 

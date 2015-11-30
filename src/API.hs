@@ -86,6 +86,6 @@ instance ApiRequest ProcessingRequest where
     runVer (ProcessingRequest user _ fileNames) = do
         user <- runVer user 
         files <- mapM fileHelper fileNames
-        return $ user >> (foldl1 (>>) files)
+        return $ user >> foldl1 (>>) files
         where fileHelper fName = fromBool NoAccess
                   (checkPermissions ("data/" ++ fName) user)

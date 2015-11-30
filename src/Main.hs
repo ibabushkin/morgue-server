@@ -75,7 +75,7 @@ apiGen re = do
 -- | a version of the API call above for IO actions, includes verification
 apiGenIO :: (ToJSON a, FromJSON r, ApiRequest r)
               => (r -> IO (ApiResponse a)) -> ServerPart Response
-apiGenIO re = apiGen (liftIO . (verifyPerms re))
+apiGenIO re = apiGen (liftIO . verifyPerms re)
 
 -- | verify the validity and integrity of a request
 verifyPerms :: ApiRequest r

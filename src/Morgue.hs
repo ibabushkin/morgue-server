@@ -11,6 +11,6 @@ import Util
 -- | get an Agenda
 getAgenda :: ProcessingRequest -> IO (ApiResponse String)
 getAgenda (ProcessingRequest _ opts files) =
-    success <$> (concat <$> mapM readFile files >>= (processor opts) opts)
-        where processor (AgendaOptions _ _ _ _ _ _ _) = A.getAgenda
-              processor (OutlineOptions _ _) = O.getOutline
+    success <$> (concat <$> mapM readFile files >>= processor opts opts)
+        where processor AgendaOptions{} = A.getAgenda
+              processor OutlineOptions{} = O.getOutline
