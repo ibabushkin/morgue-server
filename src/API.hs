@@ -47,7 +47,7 @@ instance ApiRequest Credentials where
 instance ApiRequest PushRequest where
     runVer (PushRequest user Nothing f) =
         (>>) <$> runVer user <*>
-            fromBool EntityAlreadyExists (fileExisting f user)
+            fromBool EntityAlreadyExists (not <$> fileExisting f user)
     runVer (PushRequest user (Just group) file) = do
         results <- sequence [ runVer user
                             , fromBool NoAccess (isMember user group)

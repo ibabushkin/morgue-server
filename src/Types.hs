@@ -1,6 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
-module Types where
+module Types
+    ( module Types
+    , module Data.Aeson
+    , module Data.Morgue.AgendaGenerator
+    , module Data.Morgue.Format
+    , module Data.Morgue.Options
+    ) where
 
 import Control.Applicative
 
@@ -14,15 +20,23 @@ import Data.Morgue.Options
 import Text.Read (readMaybe)
 
 -- {{{ FromJSON instances for morgue's datatypes
-instance FromJSON OutputFormat where
-    parseJSON (Object v) = (readMaybe <$> v .: "name") >>= helper
-        where helper (Just n) = return n
-              helper Nothing = fail ""
-
 instance FromJSON AgendaMode where
-    parseJSON (Object v) = (readMaybe <$> v .: "name") >>= helper
-        where helper (Just n) = return n
-              helper Nothing = fail ""
+    parseJSON (String s) =
+        case s of
+          "Todo" -> pure Todo
+          "Timed" -> pure Timed
+          "Both" -> pure Both
+          _ -> mempty
+    parseJSON _ = mempty
+
+instance FromJSON OutputFormat where
+    parseJSON (String s) =
+        case s of
+          "ANSI" -> pure ANSI
+          "Plaintext" -> pure Plaintext
+          "Pango" -> pure Pango
+          _ -> mempty
+    parseJSON _ = mempty
 
 instance FromJSON Options where
     parseJSON (Object v) = (AgendaOptions <$>
@@ -35,6 +49,8 @@ instance FromJSON Options where
         (v .: "format")) <|> (OutlineOptions <$>
         pure putStrLn <*>
         (v .: "format"))
+        where helper (Just a) = return a
+              helper Nothing = fail ""
 -- }}}
 
 -- | a user of our system
