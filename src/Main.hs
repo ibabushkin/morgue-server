@@ -43,6 +43,7 @@ groupApi :: ServerPart Response
 groupApi = msum
     [ dirGen "new" insertGroup
     , dirGen "add" addUserToGroup
+    , dirGen "members" getMembers
     , e404
     ]
 

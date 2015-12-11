@@ -1,6 +1,7 @@
 module Util where
 
-import Data.Aeson (encode, ToJSON)
+import Data.Aeson (ToJSON)
+import Data.Aeson.Encode.Pretty
 
 import Happstack.Server (toResponse, Response)
 
@@ -16,4 +17,4 @@ failure = ApiResponse . Left
 
 -- | process anything that can be encoded as JSON to a Response
 respond :: ToJSON r => r -> Response
-respond = toResponse . encode
+respond = toResponse . encodePretty' (defConfig { confCompare = compare })

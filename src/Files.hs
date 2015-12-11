@@ -22,6 +22,7 @@ class Owner o where
     queryU :: o -> Query
     queryI :: o -> Query
     getName :: o -> String
+    getPrefix :: o -> String
 
 -- | Users are owners
 instance Owner User where
@@ -33,6 +34,7 @@ instance Owner User where
     queryU = const "INSERT INTO user_ownership (user_id, path) VALUES (?, ?)"
     queryI = const "SELECT id FROM users WHERE name=?"
     getName = userName
+    getPrefix = const "u"
 
 -- | Groups are owners
 instance Owner Group where
@@ -44,9 +46,10 @@ instance Owner Group where
     queryU = const "INSERT INTO group_ownership (group_id, path) VALUES (?, ?)"
     queryI = const "SELECT id FROM groups WHERE name=?"
     getName = groupName
+    getPrefix = const "g"
 
 -- | check permissions for a given owner
-ownedBy :: Owner a => String -> a -> IO Bool
+ownedBy :: Owner a => FileName -> a -> IO Bool
 ownedBy file owner = do con <- open "data/users.db"
                         not . null <$> (query con (queryF owner)
                             (file, getName owner) :: IO [Only String])
@@ -58,7 +61,7 @@ getId owner = do con <- open "data/users.db"
                  return oId
 
 -- | check whether a user is allowed to access a file
-checkPermissions :: String -> User -> IO Bool
+checkPermissions :: FileName -> User -> IO Bool
 checkPermissions file user = do
     u <- ownedBy file user
     gs <- getGroups user
@@ -71,7 +74,7 @@ getFile (FileRequest _ file) =
     where file' = ("data/"++) . concat $ splitOn "../" file
 
 -- | upload a file as a User or Group
-uploadFile :: PushRequest -> IO (ApiResponse String)
+uploadFile :: PushRequest -> IO (ApiResponse FileName)
 uploadFile (PushRequest user Nothing file) = do
     createDirectoryIfMissing True (dropFileName filename)
     writeFile filename (contents file)
@@ -111,8 +114,9 @@ cleanFilename path
     | otherwise = path
 
 -- | prevent directory transversal and add relative prefix
+-- TODO: why a file???
 sanitizeFilename :: Owner o => File -> o -> FilePath
-sanitizeFilename file owner = "data" </> getName owner </>
+sanitizeFilename file owner = "data" </> getPrefix owner </> getName owner </>
     foldr1 (</>) [dropSlash d | d <- splitOn ".." $ name file, not $ null d]
     where dropSlash ('/':s) = s
           dropSlash s = s

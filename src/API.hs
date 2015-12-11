@@ -66,7 +66,7 @@ instance ApiRequest FileRequest where
 instance ApiRequest GroupRequest where
     runVer (GroupRequest user gName) =
         (>>) <$> runVer user <*>
-            fromBool EntityAlreadyExists (existsGroup gName)
+            fromBool EntityAlreadyExists (not <$> existsGroup gName)
 
 -- | adding users to groups
 instance ApiRequest GroupAddRequest where
@@ -79,7 +79,13 @@ instance ApiRequest GroupAddRequest where
         return $ foldl1 (>>) results
         where user2helper = do
                   [user2] <- getUser uName2
-                  fromBool EntityAlreadyExists (not <$> isMember user2 group)
+                  fromBool EntityAlreadyExists (isMember user2 group)
+
+-- | listing the users in a group
+instance ApiRequest GroupListRequest where
+    runVer (GroupListRequest user (Group gName)) = 
+        (>>) <$> runVer user <*>
+            fromBool NoSuchEntity (existsGroup gName)
 
 -- | requesting processed content from morgue
 instance ApiRequest ProcessingRequest where

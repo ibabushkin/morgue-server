@@ -17,16 +17,16 @@ import Types
 import Util
 
 -- | generate an API key from the system's RNG
-generateKey :: IO String
+generateKey :: IO ApiKey
 generateKey = showDigest <$> (hmacSha256 <$>
     (L.fromStrict <$> getEntropy 256) <*> (L.fromStrict <$> getEntropy 256))
 
 -- | does a user with that name exist?
-existsUser :: String -> IO Bool
+existsUser :: UserName -> IO Bool
 existsUser uName = ((==1) . length) <$> getUser uName
 
 -- | get a list of users with only the given name
-getUser :: String -> IO [User]
+getUser :: UserName -> IO [User]
 getUser uName = do
     con <- open "data/users.db"
     map (uncurry User) <$>

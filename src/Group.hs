@@ -27,6 +27,14 @@ getGroups (User uName _) = do
         \groups, users INNER JOIN membership ON membership.user_id=users.id \
         \WHERE users.name=?" (Only uName) :: IO [Only String])
 
+-- | get a list of users' names who are members of a group
+getMembers :: GroupListRequest -> IO (ApiResponse [UserName])
+getMembers (GroupListRequest _ (Group gName)) = do
+    con <- open "data/users.db"
+    (success .  map fromOnly) <$> (query con "SELECT users.name FROM \
+        \groups, users INNER JOIN membership ON membership.user_id=users.id \
+        \WHERE groups.name=?" (Only gName) :: IO [Only String])
+
 -- | Take a name, check whether a group with that name exists already,
 -- create it if possible
 insertGroup :: GroupRequest -> IO (ApiResponse Group)

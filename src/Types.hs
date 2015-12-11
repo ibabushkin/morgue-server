@@ -53,10 +53,16 @@ instance FromJSON Options where
               helper Nothing = fail ""
 -- }}}
 
+type UserName = String
+type GroupName = String
+type FileName = String
+type ApiKey = String
+type Password = String
+
 -- | a user of our system
 -- {{{
-data User = User { userName :: String -- ^ name of the user
-                 , apiKey :: String -- ^ user's API key
+data User = User { userName :: UserName -- ^ name of the user
+                 , apiKey :: ApiKey -- ^ user's API key
                  } deriving (Show, Read, Eq)
 
 -- | Users are frequently passed to the API
@@ -71,7 +77,7 @@ instance FromJSON User where
 
 -- | a group of users
 -- {{{
-newtype Group = Group { groupName :: String -- ^ the group's name
+newtype Group = Group { groupName :: GroupName -- ^ the group's name
                       } deriving (Show, Read, Eq)
 
 -- | Groups are only a newtype ATM, but that might change
@@ -86,7 +92,7 @@ instance FromJSON Group where
 
 -- | a file
 -- {{{
-data File = File { name :: String -- ^ the file's name
+data File = File { name :: FileName -- ^ the file's name
                  , contents :: String -- ^ it's contents
                  } deriving (Show, Read, Eq)
 
@@ -104,8 +110,8 @@ instance FromJSON File where
 
 -- | a list of files, with an owner
 -- {{{
-data FileList = FileList { ownerName :: String
-                         , fileNames :: [String]
+data FileList = FileList { ownerName :: UserName
+                         , fileNames :: [FileName]
                          } deriving (Show, Read, Eq)
 
 -- | FileLists are returned by an API call
@@ -126,7 +132,7 @@ instance FromJSON PushRequest where
 
 -- | A request to pull a file
 -- {{{
-data FileRequest = FileRequest User String 
+data FileRequest = FileRequest User FileName
 
 instance FromJSON FileRequest where
     parseJSON (Object v) = FileRequest <$>
@@ -136,7 +142,7 @@ instance FromJSON FileRequest where
 
 -- | A request to create a group
 -- {{{
-data GroupRequest = GroupRequest User String
+data GroupRequest = GroupRequest User GroupName
 
 instance FromJSON GroupRequest where
     parseJSON (Object v) = GroupRequest <$>
@@ -146,7 +152,7 @@ instance FromJSON GroupRequest where
 
 -- | A request to add a fellow user to a group
 -- {{{
-data GroupAddRequest = GroupAddRequest User Group String
+data GroupAddRequest = GroupAddRequest User Group UserName
 
 instance FromJSON GroupAddRequest where
     parseJSON (Object v) = GroupAddRequest <$>
@@ -156,9 +162,20 @@ instance FromJSON GroupAddRequest where
     parseJSON _ = mempty
 -- }}}
 
+-- | A request to list all users in a group
+-- {{{
+data GroupListRequest = GroupListRequest User Group
+
+instance FromJSON GroupListRequest where
+    parseJSON (Object v) = GroupListRequest <$>
+        (v .: "user" >>= parseJSON) <*>
+        (v .: "group" >>= parseJSON)
+    parseJSON _ = mempty
+-- }}}
+
 -- | A request to get an agenda or outline for a set of files
 -- {{{
-data ProcessingRequest = ProcessingRequest User Options [String]
+data ProcessingRequest = ProcessingRequest User Options [FileName]
 
 instance FromJSON ProcessingRequest where
     parseJSON (Object v) = ProcessingRequest <$>
@@ -169,7 +186,7 @@ instance FromJSON ProcessingRequest where
 
 -- | A username and a password
 -- {{{
-data Credentials = Credentials String String
+data Credentials = Credentials UserName Password
 
 instance FromJSON Credentials where
     parseJSON (Object v) = Credentials <$> v .: "name" <*> v .: "password"
