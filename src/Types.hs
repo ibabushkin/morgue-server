@@ -2,20 +2,17 @@
 
 module Types
     ( module Types
-    , module Data.Aeson
-    , module Data.Morgue.AgendaGenerator
-    , module Data.Morgue.Format
-    , module Data.Morgue.Options
+    , module Export
     ) where
 
 import Control.Applicative
 
-import Data.Aeson
+import Data.Aeson as Export
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
-import Data.Morgue.AgendaGenerator (AgendaMode(..))
-import Data.Morgue.Format (OutputFormat(..))
-import Data.Morgue.Options
+import Data.Morgue.AgendaGenerator as Export (AgendaMode(..))
+import Data.Morgue.Format as Export (OutputFormat(..))
+import Data.Morgue.Options as Export
 
 import Text.Read (readMaybe)
 

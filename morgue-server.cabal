@@ -44,7 +44,7 @@ library
 
 executable morgue-server
   main-is:             Main.hs
-  -- other-modules:       
+  other-modules:       API, Files, Group, Morgue, Types, User, Util
   other-extensions:    OverloadedStrings, GeneralizedNewtypeDeriving
   build-depends:       base >=4.8 && <4.9,
                        aeson >=0.8 && <0.10,
@@ -69,6 +69,7 @@ test-suite spec
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:       JSONSpec
   build-depends:       base,
                        morgue-server,
                        hspec,
