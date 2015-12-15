@@ -56,9 +56,10 @@ ownedBy file owner = do con <- open "data/users.db"
 
 -- | get the id of an owner
 getId :: Owner a => a -> IO Int
-getId owner = do con <- open "data/users.db"
-                 [Only oId] <- query con (queryI owner) (Only $ getName owner)
-                 return oId
+getId owner = do
+    con <- open "data/users.db"
+    [Only oId] <- query con (queryI owner) (Only $ getName owner)
+    return oId
 
 -- | check whether a user is allowed to access a file
 checkPermissions :: FileName -> User -> IO Bool
