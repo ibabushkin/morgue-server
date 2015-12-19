@@ -1,57 +1,36 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Group where
 
-import Database.SQLite.Simple
-
-import System.Directory (createDirectoryIfMissing)
+import Data.Maybe (isJust)
 
 import Types
 import Util
 
-existsGroup :: String -> IO Bool
-existsGroup uName = do
-    con <- open "data/users.db"
-    (not . null) <$> (query con "SELECT name FROM groups WHERE name=?"
-        (Only uName) :: IO [Only String])
+-- | generate a new group
+mkGroup :: GroupRequest -> InternalGroup
+mkGroup (GroupRequest user gName) =
+    InternalGroup gName [userName user]
 
--- | find out whether a user is a member of a group
-isMember :: User -> Group -> IO Bool
-isMember u g = (g`elem`) <$> getGroups u
+-- | convert an internal group to a user
+toGroup :: InternalGroup -> Group
+toGroup = Group . iGroupName
 
--- | get a list of groups where a user is a member
-getGroups :: User -> IO [Group]
-getGroups (User uName _) = do
-    con <- open "data/users.db"
-    map (Group . fromOnly) <$> (query con "SELECT groups.name FROM \
-        \groups, users INNER JOIN membership ON membership.user_id=users.id \
-        \WHERE users.name=?" (Only uName) :: IO [Only String])
+-- | get a group from the data store
+loadGroup :: GroupName -> IO (Maybe InternalGroup)
+loadGroup (GroupName gName) = load ["data", "g", gName ++ ".json"]
 
--- | get a list of users' names who are members of a group
-getMembers :: GroupListRequest -> IO (ApiResponse [UserName])
-getMembers (GroupListRequest _ (Group gName)) = do
-    con <- open "data/users.db"
-    (success .  map fromOnly) <$> (query con "SELECT users.name FROM \
-        \groups, users INNER JOIN membership ON membership.user_id=users.id \
-        \WHERE groups.name=?" (Only gName) :: IO [Only String])
+-- | get all groups for a user
+getGroups :: UserName -> [InternalGroup] -> [InternalGroup]
+getGroups uName = filter (isMember uName)
 
--- | Take a name, check whether a group with that name exists already,
--- create it if possible
-insertGroup :: GroupRequest -> IO (ApiResponse Group)
-insertGroup (GroupRequest user gName) = do
-    con <- open "data/users.db"
-    execute con "INSERT INTO groups (name) VALUES (?)" (Only gName)
-    createDirectoryIfMissing True ("data/" ++ gName)
-    addUserToGroup (GroupAddRequest user (Group gName) (userName user))
+isMember :: UserName -> InternalGroup -> Bool
+isMember uName = (uName`elem`) . iUsers
 
--- | add a user to a group
-addUserToGroup :: GroupAddRequest -> IO (ApiResponse Group)
-addUserToGroup (GroupAddRequest _ (Group gName) uName) = do
-    con <- open "data/users.db"
-    [Only uId] <- query con "SELECT id FROM users WHERE name=?"
-        (Only uName) :: IO [Only Int]
-    [Only gId] <- query con "SELECT id FROM groups WHERE name=?"
-        (Only gName) :: IO [Only Int]
-    execute con "INSERT INTO membership (group_id, user_id) \
-        \VALUES (?, ?)" (gId, uId)
-    return . success $ Group gName
+isMemberIO :: UserName -> GroupName -> IO Bool 
+isMemberIO uName gName = do
+    group <- loadGroup gName
+    case group of
+      Just (InternalGroup _ users) -> return $ uName `elem` users
+      Nothing -> return False
+
+listGroups :: IO [InternalGroup]
+listGroups = loadAll "data/g/"

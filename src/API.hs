@@ -3,8 +3,7 @@
 module API where
 
 import Data.Aeson ()
-
-import Database.SQLite.Simple ()
+import Data.Maybe (isNothing, isJust)
 
 import Happstack.Server ()
 
@@ -35,57 +34,57 @@ class ApiRequest r where
 
 -- | users (for listing etc.)
 instance ApiRequest User where
-    runVer user@(User uName _) = fromBool AuthError
-        ((user `elem`) <$> getUser uName)
+    runVer user = fromBool AuthError (verifyUser user)
 
 -- | users (for creating new ones)
 instance ApiRequest Credentials where
     runVer (Credentials uName _) =
-        fromBool EntityAlreadyExists (not <$> existsUser uName)
+        fromBool EntityAlreadyExists (isNothing <$> loadUser uName)
 
 -- | pushing files
 instance ApiRequest PushRequest where
-    runVer (PushRequest user Nothing f) =
+    runVer (PushRequest user Nothing (File fName _)) =
         (>>) <$> runVer user <*>
-            fromBool EntityAlreadyExists (not <$> fileExisting f user)
-    runVer (PushRequest user (Just group) file) = do
+            fromBool EntityAlreadyExists (not <$> exists ("data":fName))
+    runVer (PushRequest user (Just group) (File fName _)) = do
         results <- sequence [ runVer user
-                            , fromBool NoAccess (isMember user group)
+                            , fromBool NoAccess
+                                 (isMemberIO (userName user) (groupName group))
                             , fromBool EntityAlreadyExists
-                                 (fileExisting file group)
+                                 (exists ("data":fName))
                             ]
         return $ foldl1 (>>) results
 
 -- | pulling files
 instance ApiRequest FileRequest where
-    runVer (FileRequest user filename) =
+    runVer (FileRequest user fName) =
         (>>) <$> runVer user <*>
-            fromBool NoAccess (checkPermissions ("data/" ++ filename) user)
+            fromBool NoAccess (user `mayAccess` fName)
 
 -- | adding groups
 instance ApiRequest GroupRequest where
     runVer (GroupRequest user gName) =
         (>>) <$> runVer user <*>
-            fromBool EntityAlreadyExists (not <$> existsGroup gName)
+            fromBool EntityAlreadyExists
+                (not <$> exists ["data", "g", getGName gName])
 
 -- | adding users to groups
 instance ApiRequest GroupAddRequest where
     runVer (GroupAddRequest user@(User uName _) group uName2) = do
         results <- sequence [ runVer user
-                            , fromBool NoAccess (isMember user group)
-                            , fromBool NoSuchEntity (existsUser uName)
-                            , user2helper
+                            , fromBool NoAccess
+                                (isMemberIO uName (groupName group))
+                            , fromBool NoSuchEntity (isJust <$> loadUser uName2)
+                            , fromBool EntityAlreadyExists
+                                (isMemberIO uName2 (groupName group))
                             ]
         return $ foldl1 (>>) results
-        where user2helper = do
-                  [user2] <- getUser uName2
-                  fromBool EntityAlreadyExists (isMember user2 group)
 
 -- | listing the users in a group
 instance ApiRequest GroupListRequest where
     runVer (GroupListRequest user (Group gName)) = 
-        (>>) <$> runVer user <*>
-            fromBool NoSuchEntity (existsGroup gName)
+        (>>) <$> runVer user <*> fromBool NoSuchEntity
+            (exists ["data", "g", getGName gName ++ ".json"])
 
 -- | requesting processed content from morgue
 instance ApiRequest ProcessingRequest where
@@ -93,5 +92,4 @@ instance ApiRequest ProcessingRequest where
         user <- runVer user 
         files <- mapM fileHelper fileNames
         return $ user >> foldl1 (>>) files
-        where fileHelper fName = fromBool NoAccess
-                  (checkPermissions ("data/" ++ fName) user)
+        where fileHelper fName = fromBool NoAccess (user `mayAccess` fName)

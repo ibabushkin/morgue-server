@@ -1,64 +1,48 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module User where
 
 import Crypto.Scrypt
 
-import Data.ByteString.Char8 (pack, ByteString)
-import qualified Data.ByteString.Lazy as L
-import Data.Digest.Pure.SHA (hmacSha256, showDigest)
+import qualified Data.ByteString.Lazy as B
+import Data.Digest.Pure.SHA
+import Data.Maybe (fromMaybe)
 
-import Database.SQLite.Simple
-
-import System.Directory (createDirectoryIfMissing)
-import System.Entropy (getEntropy)
+import System.Entropy
 
 import Types
 import Util
 
--- | generate an API key from the system's RNG
-generateKey :: IO ApiKey
-generateKey = showDigest <$> (hmacSha256 <$>
-    (L.fromStrict <$> getEntropy 256) <*> (L.fromStrict <$> getEntropy 256))
+-- | generate a new user
+mkUser :: Credentials -> IO InternalUser
+mkUser (Credentials uName uPass) =
+    (InternalUser uName) <$>
+        ((B.fromStrict . getEncryptedPass) <$>
+            (encryptPassIO' (Pass $ B.toStrict uPass))) <*> genApiKey
 
--- | does a user with that name exist?
-existsUser :: UserName -> IO Bool
-existsUser uName = ((==1) . length) <$> getUser uName
+-- | generate a user's API key
+genApiKey :: IO B.ByteString
+genApiKey = bytestringDigest <$> (hmacSha256 <$>
+    (B.fromStrict <$> getEntropy 256) <*>
+    (B.fromStrict <$> getEntropy 256))
 
--- | get a list of users with only the given name
-getUser :: UserName -> IO [User]
-getUser uName = do
-    con <- open "data/users.db"
-    map (uncurry User) <$>
-        (query con "SELECT name, api_key FROM users WHERE name=?"
-            (Only uName) :: IO [(String, String)])
+-- | convert an internal user to a user
+toUser :: InternalUser -> User
+toUser = User <$> iUserName <*> iApiKey
 
--- | Take a username and password, check whether a user can be created, 
--- hash the password with scrypt and derive an API key
-insertUser :: Credentials -> IO (ApiResponse User)
-insertUser (Credentials uName pass) = do
-    con <- open "data/users.db"
-    enc <- encryptPassIO defaultParams . Pass $ pack pass
-    key <- generateKey
-    execute con "INSERT INTO users (name, password, api_key) VALUES (?, ?, ?)"
-       (uName, getEncryptedPass enc, key)
-    createDirectoryIfMissing True ("data/" ++ uName)
-    return . success $ User uName key
+-- | get a user from the data store
+loadUser :: UserName -> IO (Maybe InternalUser)
+loadUser (UserName uName) = load ["data", "u", uName ++ ".json"]
 
--- | authenticate a user against the DB, return the appropriate (new)
--- API key if succesful
-authUser :: Credentials -> IO (ApiResponse User)
+-- | verify a User
+verifyUser :: User -> IO Bool
+verifyUser user@(User uName _) =
+    (fromMaybe False . fmap ((==user) . toUser)) <$> loadUser uName
+
+-- | authenticate a User
+authUser :: Credentials -> IO Bool
 authUser (Credentials uName pass) = do
-    con <- open "data/users.db"
-    result <- query con "SELECT password FROM users WHERE name=?"
-        (Only uName) :: IO [Only ByteString]
-    verify con result
-    where verify con [Only pw] =
-             case verifyPass defaultParams
-                 (Pass . pack $ pass) (EncryptedPass pw) of
-               (True, _) -> do
-                   key <- generateKey
-                   execute con "UPDATE users SET api_key=?" (Only key) 
-                   return . success $ User uName key
-               _ -> return $ failure AuthError
-          verify _ _ = return $ failure AuthError
+    user <- loadUser uName
+    case user of
+      Just (InternalUser _ _ pw) -> return $
+          verifyPass' (Pass $ B.toStrict pass)
+             (EncryptedPass $ B.toStrict pw)
+      Nothing -> return False

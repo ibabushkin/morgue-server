@@ -6,11 +6,7 @@ import Control.Monad.IO.Class (liftIO)
 
 import Data.Aeson
 
-import Database.SQLite.Simple
-
 import Happstack.Server
-
-import System.Directory (removeFile)
 
 import API
 import Files
@@ -33,8 +29,8 @@ main = simpleHTTP nullConf $ msum
 -- | our user-related API functions
 userApi :: ServerPart Response
 userApi = msum
-    [ dirGen "new" insertUser
-    , dirGen "auth" authUser
+    [ dirGen "new" (mkUser >>= storeUser)
+    , dirGen "auth" (authUser >>= storeUser)
     , e404
     ]
 
@@ -90,15 +86,3 @@ verifyPerms action req = do
 -- | Docs Not Found.
 e404 :: ServerPart Response
 e404 = notFound $ toResponse ("404: Not here, stop searching!" :: String)
-
--- | initialize all database tables.
-initDatabase :: IO ()
-initDatabase = do
-    removeFile "data/users.db"
-    con <- open "data/users.db"
-    execute_ con "CREATE TABLE users (id INTEGER PRIMARY KEY, \
-                 \name TEXT, password TEXT, api_key TEXT)"
-    execute_ con "CREATE TABLE groups (id INTEGER PRIMARY KEY, name TEXT)"
-    execute_ con "CREATE TABLE membership (user_id INTEGER, group_id INTEGER)"
-    execute_ con "CREATE TABLE user_ownership (user_id INTEGER, path TEXT)"
-    execute_ con "CREATE TABLE group_ownership (group_id INTEGER, path TEXT)"

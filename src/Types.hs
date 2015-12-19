@@ -1,20 +1,48 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module Types
     ( module Types
     , module Export
+    , module O
     ) where
 
 import Control.Applicative
 
 import Data.Aeson as Export
+import Data.Aeson.TH
+import qualified Data.ByteString.Lazy as B
+import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
 import Data.Morgue.AgendaGenerator as Export (AgendaMode(..))
 import Data.Morgue.Format as Export (OutputFormat(..))
-import Data.Morgue.Options as Export
+import qualified Data.Morgue.Options as O
+import qualified Data.Text as T
 
 import Text.Read (readMaybe)
+
+import TemplateUtil
+
+-- {{{ type synonyms for self-documenting types
+newtype UserName = UserName { getUName :: String }
+    deriving (Show, Read, Eq, FromJSON, ToJSON)
+newtype GroupName = GroupName { getGName :: String }
+    deriving (Show, Read, Eq, FromJSON, ToJSON)
+-- | a File's name, by path components
+type FileName = [String]
+type FileContent = T.Text
+type ApiKey = B.ByteString
+type Password = B.ByteString
+-- }}}
+
+-- {{{ To/FromJSON instances for type synonyms
+instance FromJSON B.ByteString where
+    parseJSON (String s) = pure . pack $ T.unpack s
+    parseJSON _ = mempty
+
+instance ToJSON B.ByteString where
+    toJSON = String . T.pack . unpack
+-- }}}
 
 -- {{{ FromJSON instances for morgue's datatypes
 instance FromJSON AgendaMode where
@@ -35,26 +63,20 @@ instance FromJSON OutputFormat where
           _ -> mempty
     parseJSON _ = mempty
 
-instance FromJSON Options where
-    parseJSON (Object v) = (AgendaOptions <$>
+instance FromJSON O.Options where
+    parseJSON (Object v) = (O.AgendaOptions <$>
         (v .: "mode") <*>
         (v .: "double_spaces") <*>
         (v .:? "tags") <*>
         (v .:? "skip_tags") <*>
         (v .: "num_days") <*>
-        pure putStrLn <*>
-        (v .: "format")) <|> (OutlineOptions <$>
-        pure putStrLn <*>
+        pure Prelude.putStrLn <*>
+        (v .: "format")) <|> (O.OutlineOptions <$>
+        pure Prelude.putStrLn <*>
         (v .: "format"))
         where helper (Just a) = return a
               helper Nothing = fail ""
 -- }}}
-
-type UserName = String
-type GroupName = String
-type FileName = String
-type ApiKey = String
-type Password = String
 
 -- | a user of our system
 -- {{{
@@ -90,18 +112,16 @@ instance FromJSON Group where
 -- | a file
 -- {{{
 data File = File { name :: FileName -- ^ the file's name
-                 , contents :: String -- ^ it's contents
+                 , contents :: FileContent -- ^ it's contents
                  } deriving (Show, Read, Eq)
 
 -- | To encode files in JSON, we need to encode newlines on the fly 
 instance ToJSON File where
-    toJSON (File n c) = object ["name" .= n, "content" .= c']
-        where c' = unlines $ splitOn "\n" c
+    toJSON (File n c) = object ["name" .= n, "content" .= c]
 
 -- | To decode files from JSON, we need to decode newlines on the fly
 instance FromJSON File where
-    parseJSON (Object v) = File <$> v .: "name" <*>
-        (intercalate "\n" . lines <$> v .: "content")
+    parseJSON (Object v) = File <$> v .: "name" <*> v .: "content"
     parseJSON _ = mempty
 -- }}}
 
@@ -172,7 +192,7 @@ instance FromJSON GroupListRequest where
 
 -- | A request to get an agenda or outline for a set of files
 -- {{{
-data ProcessingRequest = ProcessingRequest User Options [FileName]
+data ProcessingRequest = ProcessingRequest User O.Options [FileName]
 
 instance FromJSON ProcessingRequest where
     parseJSON (Object v) = ProcessingRequest <$>
@@ -200,8 +220,7 @@ data ApiError = BadRequest
     deriving (Show, Read, Eq)
 
 -- | convert API errors to JSON
-instance ToJSON ApiError where
-    toJSON a = object ["name" .= show a]
+$(deriveToJSON defaultOptions ''ApiError)
 -- }}}
 
 -- | a response as returned by the API
@@ -215,4 +234,20 @@ instance ToJSON r => ToJSON (ApiResponse r) where
         object ["result" .= Null, "error" .= e]
     toJSON (ApiResponse (Right r)) =
         object ["result" .= r, "error" .= Null]
+-- }}}
+
+-- | Internal datatypes
+-- {{{
+data InternalUser = InternalUser { iUserName :: UserName
+                                 , iApiKey :: ApiKey
+                                 , iPassword :: Password
+                                 }
+
+$(deriveJSON internalOptions ''InternalUser)
+
+data InternalGroup = InternalGroup { iGroupName :: GroupName
+                                   , iUsers :: [UserName]
+                                   }
+
+$(deriveJSON internalOptions ''InternalGroup)
 -- }}}
