@@ -1,6 +1,6 @@
 module Group where
 
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromJust)
 
 import Types
 import Util
@@ -17,6 +17,27 @@ toGroup = Group . iGroupName
 -- | get a group from the data store
 loadGroup :: GroupName -> IO (Maybe InternalGroup)
 loadGroup (GroupName gName) = load ["data", "g", gName ++ ".json"]
+
+-- | store a group
+storeGroup :: InternalGroup -> IO InternalGroup
+storeGroup group =
+    store ["data", "g", getGName $ iGroupName group] group >> return group
+
+-- | insert a new group
+insertGroup :: GroupRequest -> IO InternalGroup
+insertGroup gRequest = let group = mkGroup gRequest
+                        in storeGroup group >> return group
+
+-- | insert a user in a group
+addUser :: InternalGroup -> UserName -> InternalGroup
+addUser group uName = group { iUsers = uName : iUsers group }
+
+addUserToGroup :: GroupAddRequest -> IO InternalGroup
+addUserToGroup (GroupAddRequest _ (Group gName) uName) = do
+    group <- fromJust <$> loadGroup gName
+    let newGroup = addUser group uName
+    storeGroup newGroup
+    return newGroup
 
 -- | get all groups for a user
 getGroups :: UserName -> [InternalGroup] -> [InternalGroup]

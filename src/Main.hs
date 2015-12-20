@@ -37,9 +37,8 @@ userApi = msum
 -- | our group-related API functions
 groupApi :: ServerPart Response
 groupApi = msum
-    [ dirGen "new" insertGroup
+    [ dirGen "new" storeGroup
     , dirGen "add" addUserToGroup
-    , dirGen "members" getMembers
     , e404
     ]
 

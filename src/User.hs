@@ -18,6 +18,14 @@ mkUser (Credentials uName uPass) =
         ((B.fromStrict . getEncryptedPass) <$>
             (encryptPassIO' (Pass $ B.toStrict uPass))) <*> genApiKey
 
+-- | store a new user
+-- TODO: rename to insertUser and make clean
+storeUser :: Credentials -> IO User
+storeUser creds = do
+    user <- mkUser creds
+    store ["data", "u", getUName $ iUserName user] user
+    return $ toUser user
+
 -- | generate a user's API key
 genApiKey :: IO B.ByteString
 genApiKey = bytestringDigest <$> (hmacSha256 <$>
