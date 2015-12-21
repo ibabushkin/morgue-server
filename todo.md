@@ -35,7 +35,6 @@ considering individual cases, but should be handled in a consistent manner,
 so this is likely to happen.
 
 ## Conclusion
-* learn about functional dependencies
 * decide on additional types to represent information passed to
   computation functions. However, this might be unnecessary in some cases,
   since a lot can be done via a simple pattern: `storeStuff (somePureFunc …)`

@@ -21,7 +21,7 @@ mkUser (Credentials uName uPass) =
 -- | store a new user
 storeUser :: InternalUser -> IO User
 storeUser user = do
-    store ["data", "u", getUName $ iUserName user] user
+    store (FileName ["data", "u", getUName $ iUserName user]) user
     return $ toUser user
 
 -- | generate a user's API key
@@ -36,7 +36,7 @@ toUser = User <$> iUserName <*> iApiKey
 
 -- | get a user from the data store
 loadUser :: UserName -> IO (Maybe InternalUser)
-loadUser (UserName uName) = load ["data", "u", uName ++ ".json"]
+loadUser (UserName uName) = load (FileName ["data", "u", uName ++ ".json"])
 
 -- | verify a User
 verifyUser :: User -> IO Bool

@@ -16,12 +16,12 @@ toGroup = Group . iGroupName
 
 -- | get a group from the data store
 loadGroup :: GroupName -> IO (Maybe InternalGroup)
-loadGroup (GroupName gName) = load ["data", "g", gName ++ ".json"]
+loadGroup (GroupName gName) = load $ FileName ["data", "g", gName ++ ".json"]
 
 -- | store a group
 storeGroup :: InternalGroup -> IO InternalGroup
-storeGroup group =
-    store ["data", "g", getGName $ iGroupName group] group >> return group
+storeGroup group = store (FileName
+    ["data", "g", getGName $ iGroupName group]) group >> return group
 
 -- | insert a new group
 insertGroup :: GroupRequest -> IO InternalGroup

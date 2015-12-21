@@ -29,7 +29,8 @@ newtype UserName = UserName { getUName :: String }
 newtype GroupName = GroupName { getGName :: String }
     deriving (Show, Read, Eq, FromJSON, ToJSON)
 -- | a File's name, by path components
-type FileName = [String]
+newtype FileName = FileName { getFName :: [String] }
+    deriving (Show, Read, Eq, FromJSON, ToJSON)
 type FileContent = T.Text
 type ApiKey = B.ByteString
 type Password = B.ByteString

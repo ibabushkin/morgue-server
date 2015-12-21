@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FunctionalDependencies #-}
 
 module API where
 
@@ -23,26 +23,24 @@ fromBool err res = do
        else return $ failure err
 
 -- | types that need to be verified when coming from an API call
-class ApiRequest r where
-    verify :: r -> IO (Maybe ApiError)
-    verify r = do
-        rr <- runVer r
-        case rr of
-          ApiResponse (Left err) -> return $ Just err
-          ApiResponse (Right ()) -> return Nothing
-    runVer :: r -> IO (ApiResponse ())
+class ApiRequest r p | r -> p where
+    runVer :: r -> IO (ApiResponse p)
 
 -- | users (for listing etc.)
-instance ApiRequest User where
+-- TODO: implement new
+instance ApiRequest User UserName where
     runVer user = fromBool AuthError (verifyUser user)
 
 -- | users (for creating new ones)
-instance ApiRequest Credentials where
+-- TODO: implement new
+instance ApiRequest Credentials Credentials where
     runVer (Credentials uName _) =
         fromBool EntityAlreadyExists (isNothing <$> loadUser uName)
 
 -- | pushing files
-instance ApiRequest PushRequest where
+-- TODO: implement new
+-- take a push request and return a file with manipulated path
+instance ApiRequest PushRequest File where
     runVer (PushRequest user Nothing (File fName _)) =
         (>>) <$> runVer user <*>
             fromBool EntityAlreadyExists (not <$> exists ("data":fName))
@@ -56,20 +54,23 @@ instance ApiRequest PushRequest where
         return $ foldl1 (>>) results
 
 -- | pulling files
-instance ApiRequest FileRequest where
+-- TODO: implement new
+instance ApiRequest FileRequest FileName where
     runVer (FileRequest user fName) =
         (>>) <$> runVer user <*>
             fromBool NoAccess (user `mayAccess` fName)
 
 -- | adding groups
-instance ApiRequest GroupRequest where
+-- TODO: implement new
+instance ApiRequest GroupRequest GroupRequest where
     runVer (GroupRequest user gName) =
         (>>) <$> runVer user <*>
             fromBool EntityAlreadyExists
                 (not <$> exists ["data", "g", getGName gName])
 
 -- | adding users to groups
-instance ApiRequest GroupAddRequest where
+-- TODO: implement new
+instance ApiRequest GroupAddRequest UserName where
     runVer (GroupAddRequest user@(User uName _) group uName2) = do
         results <- sequence [ runVer user
                             , fromBool NoAccess
@@ -80,14 +81,9 @@ instance ApiRequest GroupAddRequest where
                             ]
         return $ foldl1 (>>) results
 
--- | listing the users in a group
-instance ApiRequest GroupListRequest where
-    runVer (GroupListRequest user (Group gName)) = 
-        (>>) <$> runVer user <*> fromBool NoSuchEntity
-            (exists ["data", "g", getGName gName ++ ".json"])
-
 -- | requesting processed content from morgue
-instance ApiRequest ProcessingRequest where
+-- TODO: implement new
+instance ApiRequest ProcessingRequest ProcessingRequest where
     runVer (ProcessingRequest user _ fileNames) = do
         user <- runVer user 
         files <- mapM fileHelper fileNames

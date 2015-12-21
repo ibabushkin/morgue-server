@@ -31,7 +31,7 @@ respond = toResponse . encodePretty' (defConfig { confCompare = compare })
 
 -- | split a path to i
 segmentPath :: FilePath -> FileName
-segmentPath = splitDirectories
+segmentPath = FileName . splitDirectories
 
 -- | remove dangerous chars from a String meant to be included in a path
 cleanPathSegment :: String -> String
@@ -39,7 +39,7 @@ cleanPathSegment = filter (/='/')
 
 -- | join a path in a secure fashion
 joinPath :: FileName -> FilePath
-joinPath = foldr (</>) "" . map cleanPathSegment
+joinPath = foldr (</>) "" . map cleanPathSegment . getFName
 
 -- | store an object
 store :: ToJSON t => FileName -> t -> IO ()
