@@ -19,10 +19,8 @@ mkUser (Credentials uName uPass) =
             (encryptPassIO' (Pass $ B.toStrict uPass))) <*> genApiKey
 
 -- | store a new user
--- TODO: rename to insertUser and make clean
-storeUser :: Credentials -> IO User
-storeUser creds = do
-    user <- mkUser creds
+storeUser :: InternalUser -> IO User
+storeUser user = do
     store ["data", "u", getUName $ iUserName user] user
     return $ toUser user
 

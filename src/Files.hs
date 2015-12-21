@@ -1,5 +1,6 @@
 module Files where
 
+import Data.Maybe (fromJust)
 import qualified Data.Text as T
 
 import Group
@@ -23,6 +24,19 @@ loadFile :: FileName -> IO (Maybe File)
 loadFile fName = do
     content <- loadText fName
     return $ File fName <$> content
+
+storeFile :: File -> IO FileName
+storeFile = undefined
+
+uploadFile :: FileRequest -> IO FileName
+uploadFile = undefined
+
+listFiles :: User -> IO FileList
+listFiles = undefined
+
+-- | get a file from the data store, assumes verification up-front
+getFile :: FileRequest -> IO File
+getFile (FileRequest _ fName) = fromJust <$> loadFile fName
 
 -- | check whether a user may access a file
 mayAccess :: User -> FileName -> IO Bool
