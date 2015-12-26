@@ -1,4 +1,8 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell,
+             DeriveTraversable,
+             DeriveFoldable,
+             GeneralizedNewtypeDeriving,
+             OverloadedStrings #-}
 
 module Types
     ( module Types
@@ -7,6 +11,8 @@ module Types
     ) where
 
 import Control.Applicative
+
+import Crypto.Scrypt(Salt)
 
 import Data.Aeson as Export
 import Data.Aeson.TH
@@ -26,17 +32,20 @@ import TemplateUtil
 -- {{{ type synonyms for self-documenting types
 newtype UserName = UserName { getUName :: String }
     deriving (Show, Read, Eq, FromJSON, ToJSON)
+
 newtype GroupName = GroupName { getGName :: String }
     deriving (Show, Read, Eq, FromJSON, ToJSON)
+
 -- | a File's name, by path components
 newtype FileName = FileName { getFName :: [String] }
     deriving (Show, Read, Eq, FromJSON, ToJSON)
+
 type FileContent = T.Text
-type ApiKey = B.ByteString
+type ApiKey = String
 type Password = B.ByteString
 -- }}}
 
--- {{{ To/FromJSON instances for type synonyms
+-- {{{ To/FromJSON instances for elementar types
 instance FromJSON B.ByteString where
     parseJSON (String s) = pure . pack $ T.unpack s
     parseJSON _ = mempty
@@ -95,19 +104,23 @@ instance FromJSON User where
     parseJSON _ = mempty
 -- }}}
 
+-- | internal representation of a user
+-- {{{
+data InternalUser = InternalUser { iUserName :: UserName
+                                 , iApiKey :: ApiKey
+                                 , iPassword :: Password
+                                 }
+
+$(deriveJSON internalOptions ''InternalUser)
+-- }}}
+
 -- | a group of users
 -- {{{
-newtype Group = Group { groupName :: GroupName -- ^ the group's name
-                      } deriving (Show, Read, Eq)
+data Group = Group { iGroupName :: GroupName
+                   , iUsers :: [UserName]
+                   }
 
--- | Groups are only a newtype ATM, but that might change
-instance ToJSON Group where
-    toJSON (Group n) = object ["name" .= n]
-
--- | Groups are only a newtype ATM, but that might change
-instance FromJSON Group where
-    parseJSON (Object v) = Group <$> v .: "name"
-    parseJSON _ = mempty
+$(deriveJSON internalOptions ''Group)
 -- }}}
 
 -- | a file
@@ -139,7 +152,10 @@ instance ToJSON FileList where
 
 -- | a request to push a file
 -- {{{
-data PushRequest = PushRequest User (Maybe Group) File
+data PushRequest = PushRequest { pRqUser :: User
+                               , pRqGroup ::  Maybe GroupName
+                               , pRqFile ::  File
+                               }
 
 instance FromJSON PushRequest where
     parseJSON (Object v) = PushRequest <$>
@@ -150,7 +166,9 @@ instance FromJSON PushRequest where
 
 -- | A request to pull a file
 -- {{{
-data FileRequest = FileRequest User FileName
+data FileRequest = FileRequest { fRqUser :: User
+                               , fRqFileName :: FileName
+                               }
 
 instance FromJSON FileRequest where
     parseJSON (Object v) = FileRequest <$>
@@ -160,7 +178,9 @@ instance FromJSON FileRequest where
 
 -- | A request to create a group
 -- {{{
-data GroupRequest = GroupRequest User GroupName
+data GroupRequest = GroupRequest { gRqUser :: User
+                                 , gRqGroupName ::  GroupName
+                                 }
 
 instance FromJSON GroupRequest where
     parseJSON (Object v) = GroupRequest <$>
@@ -170,7 +190,10 @@ instance FromJSON GroupRequest where
 
 -- | A request to add a fellow user to a group
 -- {{{
-data GroupAddRequest = GroupAddRequest User Group UserName
+data GroupAddRequest = GroupAddRequest { gaRqUser :: User
+                                       , gaRqGroup ::  GroupName
+                                       , gaRqUserName :: UserName
+                                       }
 
 instance FromJSON GroupAddRequest where
     parseJSON (Object v) = GroupAddRequest <$>
@@ -180,20 +203,12 @@ instance FromJSON GroupAddRequest where
     parseJSON _ = mempty
 -- }}}
 
--- | A request to list all users in a group
--- {{{
-data GroupListRequest = GroupListRequest User Group
-
-instance FromJSON GroupListRequest where
-    parseJSON (Object v) = GroupListRequest <$>
-        (v .: "user" >>= parseJSON) <*>
-        (v .: "group" >>= parseJSON)
-    parseJSON _ = mempty
--- }}}
-
 -- | A request to get an agenda or outline for a set of files
 -- {{{
-data ProcessingRequest = ProcessingRequest User O.Options [FileName]
+data ProcessingRequest = ProcessingRequest { prRqUser :: User
+                                           , prRqOptions ::  O.Options
+                                           , prRqFileNames :: [FileName]
+                                           }
 
 instance FromJSON ProcessingRequest where
     parseJSON (Object v) = ProcessingRequest <$>
@@ -204,20 +219,38 @@ instance FromJSON ProcessingRequest where
 
 -- | A username and a password
 -- {{{
-data Credentials = Credentials UserName Password
+data Credentials = Credentials { uName :: UserName
+                               , uPass :: Password
+                               }
 
 instance FromJSON Credentials where
     parseJSON (Object v) = Credentials <$> v .: "name" <*> v .: "password"
     parseJSON _ = mempty
 -- }}}
 
+-- | Newtypes for signing in and up
+-- {{{
+newtype SignUpRequest = SignUpRequest { suRqCreds :: Credentials }
+    deriving FromJSON
+
+data SignUpData = SignUpData Credentials ApiKey Salt
+
+newtype SignInRequest = SignInRequest { siRqCreds :: Credentials }
+    deriving FromJSON
+
+data SignInData = SignInData Password InternalUser ApiKey
+
+type GroupAddData = (Group, UserName)
+
+-- }}}
+
 -- | an error returned by the API
 -- {{{
 data ApiError = BadRequest
               | AuthError
-              | EntityAlreadyExists
               | NoAccess
               | NoSuchEntity
+              | EntityAlreadyExists
     deriving (Show, Read, Eq)
 
 -- | convert API errors to JSON
@@ -226,29 +259,16 @@ $(deriveToJSON defaultOptions ''ApiError)
 
 -- | a response as returned by the API
 -- {{{
-newtype ApiResponse r = ApiResponse (Either ApiError r)
-    deriving (Functor, Applicative, Monad)
+newtype ApiResponse i r = ApiResponse (Either ApiError r)
+    deriving (Functor, Applicative, Monad, Foldable, Traversable)
 
 -- | convert API responses to JSON
-instance ToJSON r => ToJSON (ApiResponse r) where
+instance ToJSON r => ToJSON (ApiResponse i r) where
     toJSON (ApiResponse (Left e)) =
         object ["result" .= Null, "error" .= e]
     toJSON (ApiResponse (Right r)) =
         object ["result" .= r, "error" .= Null]
 -- }}}
 
--- | Internal datatypes
--- {{{
-data InternalUser = InternalUser { iUserName :: UserName
-                                 , iApiKey :: ApiKey
-                                 , iPassword :: Password
-                                 }
-
-$(deriveJSON internalOptions ''InternalUser)
-
-data InternalGroup = InternalGroup { iGroupName :: GroupName
-                                   , iUsers :: [UserName]
-                                   }
-
-$(deriveJSON internalOptions ''InternalGroup)
--- }}}
+-- | an API call
+type ApiCall req res = req -> IO (ApiResponse req res) 

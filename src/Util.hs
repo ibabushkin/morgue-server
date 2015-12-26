@@ -17,18 +17,21 @@ import System.FilePath ((</>), splitDirectories)
 
 import Types
 
+-- {{{ API helpers
 -- | successful API response
-success :: a -> ApiResponse a
+success :: a -> ApiResponse i a
 success = ApiResponse . Right
 
 -- | failed API response
-failure :: ApiError -> ApiResponse a
+failure :: ApiError -> ApiResponse i a
 failure = ApiResponse . Left
 
 -- | process anything that can be encoded as JSON to a Response
 respond :: ToJSON r => r -> Response
 respond = toResponse . encodePretty' (defConfig { confCompare = compare })
+-- }}}
 
+-- {{{ datastore and path manipulation
 -- | split a path to i
 segmentPath :: FilePath -> FileName
 segmentPath = FileName . splitDirectories
@@ -39,7 +42,7 @@ cleanPathSegment = filter (/='/')
 
 -- | join a path in a secure fashion
 joinPath :: FileName -> FilePath
-joinPath = foldr (</>) "" . map cleanPathSegment . getFName
+joinPath = foldr ((</>) . cleanPathSegment) "" . getFName
 
 -- | store an object
 store :: ToJSON t => FileName -> t -> IO ()
@@ -71,3 +74,33 @@ loadText segments = do
     if ex
        then Just <$> T.IO.readFile (joinPath segments)
        else return Nothing
+-- }}}
+
+-- {{{ ApiRequest combinators
+-- | wrap a simple IO action that returns a result to be usable as `finish`
+wrapFinish :: (a -> IO b) -> ApiResponse r a -> IO (ApiResponse r b)
+wrapFinish f a = sequence $ f <$> a
+
+-- | wrap a IO-check, an error and a getter to be usable as `verify`
+wrapVerify :: (r -> IO Bool) -> ApiError -> (r -> IO i) -> r
+           -> IO (ApiResponse r i)
+wrapVerify check err get req = do
+    res <- check req
+    if res
+       then success <$> get req
+       else return $ failure err
+-- }}}
+
+-- {{{ ApiResponse wrappers
+fromBoolIO :: (a -> IO Bool) -> ApiError -> a -> IO (ApiResponse r a)
+fromBoolIO check err arg = do
+    res <- check arg
+    if res
+       then return $ success arg
+       else return $ failure err
+
+fromBool :: (a -> Bool) -> ApiError -> a -> ApiResponse r a
+fromBool pred err a
+    | pred a = success a
+    | otherwise = failure err
+-- }}}

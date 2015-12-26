@@ -1,57 +1,74 @@
 module Group where
 
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, isNothing)
 
 import Types
+import User (verifyUser)
 import Util
 
+-- {{{ creation
 -- | generate a new group
-mkGroup :: GroupRequest -> InternalGroup
+mkGroup :: GroupRequest -> Group
 mkGroup (GroupRequest user gName) =
-    InternalGroup gName [userName user]
+    Group gName [userName user]
+-- }}}
 
--- | convert an internal group to a user
-toGroup :: InternalGroup -> Group
-toGroup = Group . iGroupName
-
+-- {{{ interfacing with the datastore
 -- | get a group from the data store
-loadGroup :: GroupName -> IO (Maybe InternalGroup)
+loadGroup :: GroupName -> IO (Maybe Group)
 loadGroup (GroupName gName) = load $ FileName ["data", "g", gName ++ ".json"]
 
 -- | store a group
-storeGroup :: InternalGroup -> IO InternalGroup
+storeGroup :: Group -> IO Group
 storeGroup group = store (FileName
-    ["data", "g", getGName $ iGroupName group]) group >> return group
+    ["data", "g", (++".json") . getGName $ iGroupName group]) group >>
+        return group
+-- }}}
 
--- | insert a new group
-insertGroup :: GroupRequest -> IO InternalGroup
-insertGroup gRequest = let group = mkGroup gRequest
-                        in storeGroup group >> return group
-
+-- {{{ manipulation primitives
 -- | insert a user in a group
-addUser :: InternalGroup -> UserName -> InternalGroup
+addUser :: Group -> UserName -> Group
 addUser group uName = group { iUsers = uName : iUsers group }
 
-addUserToGroup :: GroupAddRequest -> IO InternalGroup
-addUserToGroup (GroupAddRequest _ (Group gName) uName) = do
-    group <- fromJust <$> loadGroup gName
-    let newGroup = addUser group uName
-    storeGroup newGroup
-    return newGroup
-
 -- | get all groups for a user
-getGroups :: UserName -> [InternalGroup] -> [InternalGroup]
+getGroups :: UserName -> [Group] -> [Group]
 getGroups uName = filter (isMember uName)
 
-isMember :: UserName -> InternalGroup -> Bool
-isMember uName = (uName`elem`) . iUsers
+-- | list all groups on the server
+listGroups :: IO [Group]
+listGroups = loadAll "data/g/"
 
-isMemberIO :: UserName -> GroupName -> IO Bool 
-isMemberIO uName gName = do
+-- | check for membership of a user in a group
+isMember :: UserName -> Group -> Bool
+isMember uName = (uName`elem`) . iUsers
+-- }}}
+
+-- {{{ API
+-- | verify a group creation request
+verifyGroupCreation :: GroupRequest
+                    -> IO (ApiResponse GroupRequest GroupRequest)
+verifyGroupCreation req@(GroupRequest user gName) = do
+    userVer <- fromBoolIO verifyUser AuthError user
+    gNameVer <- fromBoolIO
+        ((isNothing<$>) . loadGroup) EntityAlreadyExists gName
+    return $ userVer >> gNameVer >> resp
+    where resp = success req :: ApiResponse GroupRequest GroupRequest
+
+-- | verify a group addition
+verifyGroupAddition :: GroupAddRequest
+                    -> IO (ApiResponse GroupAddRequest GroupAddData)
+verifyGroupAddition (GroupAddRequest user gName _) = do
+    userVer <- fromBoolIO verifyUser AuthError user
     group <- loadGroup gName
     case group of
-      Just (InternalGroup _ users) -> return $ uName `elem` users
-      Nothing -> return False
+      Just g -> let memberVer = fromBool (isMember (userName user)) NoAccess g
+                 in return $ userVer >> memberVer >> success (g, userName user)
+      Nothing -> return $ failure NoSuchEntity
 
-listGroups :: IO [InternalGroup]
-listGroups = loadAll "data/g/"
+-- | process a group addition with error handling
+processGroupAddition :: GroupAddData
+                     -> ApiResponse GroupAddRequest Group
+processGroupAddition (group, uName)
+    | uName `elem` iUsers group  = failure EntityAlreadyExists
+    | otherwise = success $ addUser group uName
+-- }}}

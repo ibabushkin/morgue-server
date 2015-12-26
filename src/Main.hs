@@ -21,27 +21,29 @@ main :: IO ()
 main = simpleHTTP nullConf $ msum
     [ dir "user" userApi
     , dir "group" groupApi
-    , dir "files" fileApi
+    {-, dir "files" fileApi
     , dirGen "morgue" getAgenda
+    -}
     , e404
     ]
 
 -- | our user-related API functions
 userApi :: ServerPart Response
 userApi = msum
-    [ dirGen "new" (mkUser >>= storeUser)
-    , dirGen "auth" (authUser >>= storeUser)
+    [ dirGen "new" (run :: ApiCall SignUpRequest User)
+    , dirGen "auth" (run :: ApiCall SignInRequest User)
     , e404
     ]
 
 -- | our group-related API functions
 groupApi :: ServerPart Response
 groupApi = msum
-    [ dirGen "new" storeGroup
-    , dirGen "add" addUserToGroup
+    [ dirGen "new" (run :: ApiCall GroupRequest Group)
+    , dirGen "add" (run :: ApiCall GroupAddRequest Group)
     , e404
     ]
 
+{-
 -- | our file-related API functions
 fileApi :: ServerPart Response
 fileApi = msum
@@ -50,11 +52,12 @@ fileApi = msum
     , dirGen "push" uploadFile
     , e404
     ]
+    -}
 
 -- | a wrapper around Happstack's `dir` to remove boilerplate
 -- from the generic functions below
-dirGen :: (ToJSON a, FromJSON r, ApiRequest r)
-            => String -> (r -> IO (ApiResponse a)) -> ServerPart Response
+dirGen :: (ToJSON a, FromJSON r, ApiRequest r b c a)
+            => String -> (r -> IO (ApiResponse r a)) -> ServerPart Response
 dirGen s resp = dir s (apiGenIO resp)
 
 -- | an API call used for regular data exchange via JSON
@@ -66,21 +69,12 @@ apiGen re = do
     rBody <- liftIO . takeRequestBody =<< askRq
     case unBody <$> rBody >>= decode of
       Just b -> re b >>= ok . respond
-      Nothing -> ok $ respond (failure BadRequest :: ApiResponse ())
+      Nothing -> ok $ respond (failure BadRequest :: ApiResponse i ())
 
 -- | a version of the API call above for IO actions, includes verification
-apiGenIO :: (ToJSON a, FromJSON r, ApiRequest r)
-              => (r -> IO (ApiResponse a)) -> ServerPart Response
-apiGenIO re = apiGen (liftIO . verifyPerms re)
-
--- | verify the validity and integrity of a request
-verifyPerms :: ApiRequest r
-            => (r -> IO (ApiResponse a)) -> r -> IO (ApiResponse a)
-verifyPerms action req = do
-    errors <- verify req
-    case errors of
-      Just err ->  return $ failure err
-      Nothing -> action req
+apiGenIO :: (ToJSON a, FromJSON r, ApiRequest r b c a)
+              => (r -> IO (ApiResponse r a)) -> ServerPart Response
+apiGenIO re = apiGen (liftIO . re)
 
 -- | Docs Not Found.
 e404 :: ServerPart Response

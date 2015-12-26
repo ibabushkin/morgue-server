@@ -41,5 +41,5 @@ getFile (FileRequest _ fName) = fromJust <$> loadFile fName
 -- | check whether a user may access a file
 mayAccess :: User -> FileName -> IO Bool
 (User uName _) `mayAccess` fName = do
-    uGroups <- (map iGroupName) <$> getGroups uName <$> listGroups
+    uGroups <- map iGroupName <$> getGroups uName <$> listGroups
     return (uName `owns` fName || any (`owns` fName) uGroups)

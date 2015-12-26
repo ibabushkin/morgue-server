@@ -4,51 +4,77 @@ import Crypto.Scrypt
 
 import qualified Data.ByteString.Lazy as B
 import Data.Digest.Pure.SHA
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 
 import System.Entropy
 
 import Types
 import Util
 
+-- {{{ creation
 -- | generate a new user
-mkUser :: Credentials -> IO InternalUser
-mkUser (Credentials uName uPass) =
-    (InternalUser uName) <$>
-        ((B.fromStrict . getEncryptedPass) <$>
-            (encryptPassIO' (Pass $ B.toStrict uPass))) <*> genApiKey
-
--- | store a new user
-storeUser :: InternalUser -> IO User
-storeUser user = do
-    store (FileName ["data", "u", getUName $ iUserName user]) user
-    return $ toUser user
+mkUser :: SignUpData -> ApiResponse SignUpRequest InternalUser
+mkUser (SignUpData (Credentials uName uPass) apiKey salt) =
+    success $ InternalUser uName apiKey
+        ((B.fromStrict . getEncryptedPass)
+        (encryptPass' salt (Pass $ B.toStrict uPass)))
 
 -- | generate a user's API key
-genApiKey :: IO B.ByteString
-genApiKey = bytestringDigest <$> (hmacSha256 <$>
+genApiKey :: IO ApiKey
+genApiKey = showDigest <$> (hmacSha256 <$>
     (B.fromStrict <$> getEntropy 256) <*>
     (B.fromStrict <$> getEntropy 256))
+-- }}}
 
--- | convert an internal user to a user
-toUser :: InternalUser -> User
-toUser = User <$> iUserName <*> iApiKey
-
+-- {{{ interfacing with the datastore
 -- | get a user from the data store
 loadUser :: UserName -> IO (Maybe InternalUser)
 loadUser (UserName uName) = load (FileName ["data", "u", uName ++ ".json"])
 
--- | verify a User
+-- | store a new user
+storeUser :: InternalUser -> IO User
+storeUser user = do
+    store (FileName ["data", "u", (++".json") . getUName $ iUserName user]) user
+    return $ toUser user
+
+-- | check the existance of a user
+existsUser :: UserName -> IO Bool
+existsUser uName = isJust <$> loadUser uName
+
+-- | verify User
 verifyUser :: User -> IO Bool
 verifyUser user@(User uName _) =
-    (fromMaybe False . fmap ((==user) . toUser)) <$> loadUser uName
+    maybe False ((==user) . toUser) <$> loadUser uName
+-- }}}
+
+-- {{{ manipulation primitives
+-- | convert an internal user to a user
+toUser :: InternalUser -> User
+toUser = User <$> iUserName <*> iApiKey
+-- }}}
+
+-- {{{ API
+-- | signup verification
+verifySignUp :: SignUpRequest -> IO (ApiResponse SignUpRequest SignUpData)
+verifySignUp = wrapVerify (fmap (not<$>) existsUser . uName . suRqCreds)
+    EntityAlreadyExists getter
+    where getter req = SignUpData (suRqCreds req) <$> genApiKey <*> newSalt
+
+-- | signin verification
+verifySignIn :: SignInRequest -> IO (ApiResponse SignInRequest SignInData)
+verifySignIn req = do
+    mUser <- loadUser . uName . siRqCreds $ req
+    case mUser of
+      Just user -> success <$>
+          SignInData (uPass $ siRqCreds req) user <$> genApiKey
+      Nothing -> return $ failure NoSuchEntity -- or AuthError
 
 -- | authenticate a User
-authUser :: Credentials -> IO Bool
-authUser (Credentials uName pass) = do
-    user <- loadUser uName
-    case user of
-      Just (InternalUser _ _ pw) -> return $
-          verifyPass' (Pass $ B.toStrict pass)
-             (EncryptedPass $ B.toStrict pw)
-      Nothing -> return False
+authUser :: SignInData -> ApiResponse r InternalUser
+authUser (SignInData pass u@(InternalUser uName' _ encPass) key)
+    | res = success u { iApiKey = key }
+    | otherwise = failure AuthError
+    where res = verifyPass'
+              (Pass $ B.toStrict pass)
+              (EncryptedPass $ B.toStrict encPass)
+-- }}}
