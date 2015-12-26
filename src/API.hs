@@ -46,7 +46,11 @@ class ApiRequest r i v v2 | r -> i v v2  where
 
 -- | requests to create a new user
 instance ApiRequest SignUpRequest SignUpData InternalUser User where
-    verify = verifySignUp
+    verify req = let a = fromBool (('/'`notElem`)
+                                   . getUName
+                                   . uName
+                                   . suRqCreds) IllegalName req
+                  in (a>>) <$> verifySignUp req
     process = mkUser
     finish = wrapFinish storeUser
 

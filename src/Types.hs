@@ -248,6 +248,7 @@ type GroupAddData = (Group, UserName)
 -- {{{
 data ApiError = BadRequest
               | AuthError
+              | IllegalName
               | NoAccess
               | NoSuchEntity
               | EntityAlreadyExists
