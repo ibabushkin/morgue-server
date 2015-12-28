@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings,
              FunctionalDependencies,
-             FlexibleInstances #-}
+             FlexibleInstances
+             #-}
 
 module API where
 
@@ -33,7 +34,7 @@ An explanation of types present:
   type `v2`. However, each of those types is wrapped in a `ApiResponse` to
   allow for error handling etc.
 -}
-class ApiRequest r i v v2 | r -> i v v2  where
+class ApiRequest r i v v2 | r -> i v v2 where
     -- | verify a request's integrity and gather data needed for `process`
     verify :: r -> IO (ApiResponse r i)
     -- | perform computation
@@ -71,3 +72,24 @@ instance ApiRequest GroupAddRequest GroupAddData Group Group where
     verify = verifyGroupAddition
     process = processGroupAddition
     finish = wrapFinish storeGroup
+
+-- | requests to list all files available to a user
+instance ApiRequest User FileListData [FileName] FileList where
+    verify = wrapVerify verifyUser AuthError getUserAccess
+    process (uName, gNames) = success $
+        FileName ["data", "u", getUName uName] :
+        map (FileName . ("data":("g":)) . (:[]) . getGName) gNames
+    finish = undefined
+    -- use the FileNames passed to build up Lists of file paths
+
+-- | requests to pull a file
+instance ApiRequest FileRequest File File File where
+    verify = undefined
+    process = undefined
+    finish = undefined
+
+-- | requests to push a file
+instance ApiRequest PushRequest PushData File FileName where
+    verify = undefined
+    process = undefined
+    finish = undefined

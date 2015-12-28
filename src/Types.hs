@@ -148,6 +148,8 @@ data FileList = FileList { ownerName :: UserName
 -- | FileLists are returned by an API call
 instance ToJSON FileList where
     toJSON (FileList n fs) = object ["name" .= n, "files" .= fs]
+
+type FileListData = (UserName, [GroupName])
 -- }}}
 
 -- | a request to push a file
@@ -162,6 +164,8 @@ instance FromJSON PushRequest where
         (v .: "user" >>= parseJSON) <*>
             (v .:? "group") <*> (v .: "file" >>= parseJSON)
     parseJSON _ = mempty
+
+type PushData = (FileList, File)
 -- }}}
 
 -- | A request to pull a file
@@ -201,6 +205,8 @@ instance FromJSON GroupAddRequest where
         (v .: "group" >>= parseJSON) <*>
         v .: "username"
     parseJSON _ = mempty
+
+type GroupAddData = (Group, UserName)
 -- }}}
 
 -- | A request to get an agenda or outline for a set of files
@@ -233,14 +239,12 @@ instance FromJSON Credentials where
 newtype SignUpRequest = SignUpRequest { suRqCreds :: Credentials }
     deriving FromJSON
 
-data SignUpData = SignUpData Credentials ApiKey Salt
+type SignUpData = (Credentials, ApiKey, Salt)
 
 newtype SignInRequest = SignInRequest { siRqCreds :: Credentials }
     deriving FromJSON
 
-data SignInData = SignInData Password InternalUser ApiKey
-
-type GroupAddData = (Group, UserName)
+type SignInData = (Password, InternalUser, ApiKey)
 
 -- }}}
 

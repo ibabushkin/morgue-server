@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Group where
 
 import Data.Maybe (isJust, fromJust, isNothing)
@@ -41,6 +42,7 @@ listGroups = loadAll "data/g/"
 -- | check for membership of a user in a group
 isMember :: UserName -> Group -> Bool
 isMember uName = (uName`elem`) . iUsers
+
 -- }}}
 
 -- {{{ API
@@ -71,4 +73,11 @@ processGroupAddition :: GroupAddData
 processGroupAddition (group, uName)
     | uName `elem` iUsers group  = failure EntityAlreadyExists
     | otherwise = success $ addUser group uName
+
+-- | get a user's access rights
+getUserAccess :: User -> IO FileListData
+getUserAccess user = (userName user,)
+    . map iGroupName
+    . getGroups (userName user)
+    <$> listGroups
 -- }}}

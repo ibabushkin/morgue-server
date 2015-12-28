@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module User where
 
 import Crypto.Scrypt
@@ -14,7 +16,7 @@ import Util
 -- {{{ creation
 -- | generate a new user
 mkUser :: SignUpData -> ApiResponse SignUpRequest InternalUser
-mkUser (SignUpData (Credentials uName uPass) apiKey salt) =
+mkUser ((Credentials uName uPass), apiKey, salt) =
     success $ InternalUser uName apiKey
         ((B.fromStrict . getEncryptedPass)
         (encryptPass' salt (Pass $ B.toStrict uPass)))
@@ -58,7 +60,7 @@ toUser = User <$> iUserName <*> iApiKey
 verifySignUp :: SignUpRequest -> IO (ApiResponse SignUpRequest SignUpData)
 verifySignUp = wrapVerify (fmap (not<$>) existsUser . uName . suRqCreds)
     EntityAlreadyExists getter
-    where getter req = SignUpData (suRqCreds req) <$> genApiKey <*> newSalt
+    where getter req = (suRqCreds req,,) <$> genApiKey <*> newSalt
 
 -- | signin verification
 verifySignIn :: SignInRequest -> IO (ApiResponse SignInRequest SignInData)
@@ -66,12 +68,12 @@ verifySignIn req = do
     mUser <- loadUser . uName . siRqCreds $ req
     case mUser of
       Just user -> success <$>
-          SignInData (uPass $ siRqCreds req) user <$> genApiKey
+          (uPass $ siRqCreds req, user,) <$> genApiKey
       Nothing -> return $ failure NoSuchEntity -- or AuthError
 
 -- | authenticate a User
 authUser :: SignInData -> ApiResponse r InternalUser
-authUser (SignInData pass u@(InternalUser uName' _ encPass) key)
+authUser (pass, u@(InternalUser uName' _ encPass), key)
     | res = success u { iApiKey = key }
     | otherwise = failure AuthError
     where res = verifyPass'

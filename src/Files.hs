@@ -28,16 +28,6 @@ loadFile fName = do
 storeFile :: File -> IO FileName
 storeFile = undefined
 
-uploadFile :: FileRequest -> IO FileName
-uploadFile = undefined
-
-listFiles :: User -> IO FileList
-listFiles = undefined
-
--- | get a file from the data store, assumes verification up-front
-getFile :: FileRequest -> IO File
-getFile (FileRequest _ fName) = fromJust <$> loadFile fName
-
 -- | check whether a user may access a file
 mayAccess :: User -> FileName -> IO Bool
 (User uName _) `mayAccess` fName = do

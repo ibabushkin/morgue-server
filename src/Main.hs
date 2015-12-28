@@ -21,9 +21,8 @@ main :: IO ()
 main = simpleHTTP nullConf $ msum
     [ dir "user" userApi
     , dir "group" groupApi
-    {-, dir "files" fileApi
-    , dirGen "morgue" getAgenda
-    -}
+    , dir "files" fileApi
+    --, dirGen "morgue" getAgenda
     , e404
     ]
 
@@ -43,16 +42,14 @@ groupApi = msum
     , e404
     ]
 
-{-
 -- | our file-related API functions
 fileApi :: ServerPart Response
 fileApi = msum
-    [ dirGen "browse" listFiles
-    , dirGen "pull" getFile
-    , dirGen "push" uploadFile
+    [ dirGen "browse" (run :: ApiCall User FileList)
+    , dirGen "pull" (run :: ApiCall FileRequest File)
+    , dirGen "push" (run :: ApiCall PushRequest FileName)
     , e404
     ]
-    -}
 
 -- | a wrapper around Happstack's `dir` to remove boilerplate
 -- from the generic functions below
