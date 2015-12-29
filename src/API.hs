@@ -1,95 +1,66 @@
-{-# LANGUAGE OverloadedStrings,
-             FunctionalDependencies,
-             FlexibleInstances
-             #-}
+{-# LANGUAGE FunctionalDependencies
+           , TypeSynonymInstances
+           , FlexibleInstances
+           , TypeFamilies
+           , TemplateHaskell
+           #-}
 
 module API where
 
-import Crypto.Scrypt (Salt, newSalt)
-
-import Data.Aeson ()
-import Data.Maybe (isNothing, isJust)
+import Data.Acid
 
 import Happstack.Server ()
 
 import Types
-import Files
-import Group
-import Morgue
 import User
 import Util
 
 {- | an API request. This is a bit more complicated compared to what I
 usually write. An `ApiRequest`'s processing is sliced into layers, of
-which there are three, represented by the functions `verify`, `process`,
-and `finish`, respectively. The request gets transformed step-by-step.
+which there are three, represented by the functions `provide`, `process`,
+and `store`, respectively. The request gets transformed step-by-step.
 An explanation of types present:
-* `r` is the request itself, which is checked for appropriate permissions
-  in stage one (`verify`).
-* `i` is data needed to compute the result of a request, returned by `verify`
-  and passed on to `process` (stages one and two).
-* `process`, in turn returns a value of type `v` which is the result of the
-  computation and which is passed to `finish` which is intended to store it,
+* `r` is the request itself, which is used to gather data needed for it's
+  processing. This is done by `provide`.
+* `i` is data needed to compute the result of a request, passed on to
+  `process` (stage two).
+* `process`, in turn, returns a value of type `v` which is the result of the
+  computation and which is passed to `store` which is intended to store it,
   but might choose to transform it before returning, resulting in a value of
   type `v2`. However, each of those types is wrapped in a `ApiResponse` to
   allow for error handling etc.
 -}
-class ApiRequest r i v v2 | r -> i v v2 where
-    -- | verify a request's integrity and gather data needed for `process`
-    verify :: r -> IO (ApiResponse r i)
-    -- | perform computation
+class ApiRequest r i v v2 | r -> i v v2, i -> r where
+    provide :: r -> Query Morgue i
     process :: i -> ApiResponse r v
-    -- | do IO after computation
-    finish :: ApiResponse r v -> IO (ApiResponse r v2)
-    -- | run a request
-    run :: r -> IO (ApiResponse r v2)
-    run req = ((>>= process) <$> verify req) >>= finish
+    store :: ApiResponse r v -> Update Morgue (ApiResponse r v2)
 
--- | requests to create a new user
+run :: ApiRequest r i v v2 => r -> Update Morgue (ApiResponse r v2)
+run req = liftQuery (process <$> provide req) >>= store
+
+-- | requests to sign up
 instance ApiRequest SignUpRequest SignUpData InternalUser User where
-    verify req = let a = fromBool (('/'`notElem`)
-                                   . getUName
-                                   . uName
-                                   . suRqCreds) IllegalName req
-                  in (a>>) <$> verifySignUp req
-    process = mkUser
-    finish = wrapFinish storeUser
+    provide = signUpProvider
+    process = makeUser
+    store = liftStore storeUser
 
--- | requests to sign in as a user
+signUp :: SignUpRequest -> Update Morgue (ApiResponse SignUpRequest User)
+signUp = run
+
+-- | requests to sign in
 instance ApiRequest SignInRequest SignInData InternalUser User where
-    verify = verifySignIn
-    process = authUser
-    finish = wrapFinish storeUser
+    provide = signInProvider
+    process = loginUser
+    store = liftStore updateUser
 
--- | requests to create a new group
-instance ApiRequest GroupRequest GroupRequest Group Group where 
-    verify = verifyGroupCreation
-    process = success . mkGroup
-    finish = wrapFinish storeGroup
+signIn :: SignInRequest -> Update Morgue (ApiResponse SignInRequest User)
+signIn = run
 
--- | requests to add a user to a group
-instance ApiRequest GroupAddRequest GroupAddData Group Group where
-    verify = verifyGroupAddition
-    process = processGroupAddition
-    finish = wrapFinish storeGroup
-
--- | requests to list all files available to a user
-instance ApiRequest User FileListData [FileName] FileList where
-    verify = wrapVerify verifyUser AuthError getUserAccess
-    process (uName, gNames) = success $
-        FileName ["data", "u", getUName uName] :
-        map (FileName . ("data":("g":)) . (:[]) . getGName) gNames
-    finish = undefined
-    -- use the FileNames passed to build up Lists of file paths
-
--- | requests to pull a file
-instance ApiRequest FileRequest File File File where
-    verify = undefined
-    process = undefined
-    finish = undefined
-
--- | requests to push a file
-instance ApiRequest PushRequest PushData File FileName where
-    verify = undefined
-    process = undefined
-    finish = undefined
+-- | derive IsAcidic instances
+$(makeAcidic ''Morgue
+  [ 'signUpProvider
+  , 'signInProvider
+  , 'packUser
+  , 'signUp
+  , 'signIn
+  ])

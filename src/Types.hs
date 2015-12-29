@@ -1,8 +1,10 @@
-{-# LANGUAGE TemplateHaskell,
-             DeriveTraversable,
-             DeriveFoldable,
-             GeneralizedNewtypeDeriving,
-             OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell
+           , DeriveTraversable
+           , DeriveFoldable
+           , DeriveDataTypeable
+           , GeneralizedNewtypeDeriving
+           , OverloadedStrings
+           #-}
 
 module Types
     ( module Types
@@ -14,43 +16,48 @@ import Control.Applicative
 
 import Crypto.Scrypt(Salt)
 
+import Data.Acid (Update)
 import Data.Aeson as Export
-import Data.Aeson.TH
 import qualified Data.ByteString.Lazy as B
+import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
+import Data.Data (Data, Typeable)
+import Data.IxSet ( Indexable(..), IxSet(..), (@=)
+                  , Proxy(..), getOne, ixFun, ixSet)
+import qualified Data.IxSet as IxSet
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
 import Data.Morgue.AgendaGenerator as Export (AgendaMode(..))
 import Data.Morgue.Format as Export (OutputFormat(..))
 import qualified Data.Morgue.Options as O
+import Data.SafeCopy (base, deriveSafeCopy)
 import qualified Data.Text as T
+import Data.Text (Text)
 
 import Text.Read (readMaybe)
 
-import TemplateUtil
-
 -- {{{ type synonyms for self-documenting types
-newtype UserName = UserName { getUName :: String }
-    deriving (Show, Read, Eq, FromJSON, ToJSON)
+newtype UserName = UserName { getUName :: Text }
+    deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
-newtype GroupName = GroupName { getGName :: String }
-    deriving (Show, Read, Eq, FromJSON, ToJSON)
+newtype GroupName = GroupName { getGName :: Text }
+    deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
 -- | a File's name, by path components
-newtype FileName = FileName { getFName :: [String] }
-    deriving (Show, Read, Eq, FromJSON, ToJSON)
+newtype FileName = FileName { getFName :: [Text] }
+    deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
-type FileContent = T.Text
-type ApiKey = String
-type Password = B.ByteString
+type FileContent = Text
+type ApiKey = Text
+type Password = ByteString
 -- }}}
 
 -- {{{ To/FromJSON instances for elementar types
-instance FromJSON B.ByteString where
+instance FromJSON ByteString where
     parseJSON (String s) = pure . pack $ T.unpack s
     parseJSON _ = mempty
 
-instance ToJSON B.ByteString where
+instance ToJSON ByteString where
     toJSON = String . T.pack . unpack
 -- }}}
 
@@ -106,28 +113,37 @@ instance FromJSON User where
 
 -- | internal representation of a user
 -- {{{
-data InternalUser = InternalUser { iUserName :: UserName
-                                 , iApiKey :: ApiKey
-                                 , iPassword :: Password
-                                 }
-
-$(deriveJSON internalOptions ''InternalUser)
+data InternalUser = InternalUser
+    { iUserName :: UserName
+    , iApiKey :: ApiKey
+    , iPassword :: Password
+    , iUserFiles :: [File]
+    } deriving (Eq, Ord, Show, Read, Data, Typeable)
 -- }}}
 
 -- | a group of users
 -- {{{
-data Group = Group { iGroupName :: GroupName
-                   , iUsers :: [UserName]
+data Group = Group { groupName :: GroupName
+                   , users :: [UserName]
                    }
+-- }}}
 
-$(deriveJSON internalOptions ''Group)
+-- | internal representation of a group
+-- {{{
+data InternalGroup = InternalGroup
+    { iGroupName :: GroupName
+    , iUsers :: [UserName]
+    , iGroupFiles :: [File]
+    } deriving (Eq, Ord, Show, Read, Data, Typeable)
+
 -- }}}
 
 -- | a file
 -- {{{
-data File = File { name :: FileName -- ^ the file's name
-                 , contents :: FileContent -- ^ it's contents
-                 } deriving (Show, Read, Eq)
+data File = File
+    { fileName :: FileName
+    , fileContents :: FileContent
+    } deriving (Eq, Ord, Show, Read, Data, Typeable)
 
 -- | To encode files in JSON, we need to encode newlines on the fly 
 instance ToJSON File where
@@ -234,17 +250,26 @@ instance FromJSON Credentials where
     parseJSON _ = mempty
 -- }}}
 
--- | Newtypes for signing in and up
+-- | types for signing in and up
 -- {{{
-newtype SignUpRequest = SignUpRequest { suRqCreds :: Credentials }
+data SignUpRequest = SignUpRequest { suRqCreds :: Credentials
+                                   , suApiKey :: ApiKey
+                                   , suSalt :: Salt
+                                   }
+
+newtype SignUpRequest' = SignUpRequest' { suRqCreds' :: Credentials }
     deriving FromJSON
 
-type SignUpData = (Credentials, ApiKey, Salt)
+type SignUpData = (SignUpRequest, Maybe InternalUser)
 
-newtype SignInRequest = SignInRequest { siRqCreds :: Credentials }
+data SignInRequest = SignInRequest { siRqCreds :: Credentials
+                                   , siApiKey :: ApiKey
+                                   }
+
+newtype SignInRequest' = SignInRequest' { siRqCreds' :: Credentials }
     deriving FromJSON
 
-type SignInData = (Password, InternalUser, ApiKey)
+type SignInData = (Password, Maybe InternalUser, ApiKey)
 
 -- }}}
 
@@ -256,11 +281,10 @@ data ApiError = BadRequest
               | NoAccess
               | NoSuchEntity
               | EntityAlreadyExists
-    deriving (Show, Read, Eq)
+    deriving (Show, Eq)
 
--- | convert API errors to JSON
-$(deriveToJSON defaultOptions ''ApiError)
--- }}}
+instance ToJSON ApiError where
+    toJSON = String . T.pack . show
 
 -- | a response as returned by the API
 -- {{{
@@ -276,4 +300,56 @@ instance ToJSON r => ToJSON (ApiResponse i r) where
 -- }}}
 
 -- | an API call
-type ApiCall req res = req -> IO (ApiResponse req res) 
+type ApiCall req res = req -> Update Morgue (ApiResponse req res) 
+
+-- | our main application
+data Morgue = Morgue { allUsers :: IxSet InternalUser
+                     , allGroups :: IxSet InternalGroup
+                     }
+
+-- {{{ derive SafeCopy instances for our types
+$(deriveSafeCopy 0 'base ''Salt)
+
+$(deriveSafeCopy 0 'base ''Morgue)
+
+$(deriveSafeCopy 0 'base ''UserName)
+
+$(deriveSafeCopy 0 'base ''GroupName)
+
+$(deriveSafeCopy 0 'base ''FileName)
+
+$(deriveSafeCopy 0 'base ''InternalUser)
+
+$(deriveSafeCopy 0 'base ''User)
+
+$(deriveSafeCopy 0 'base ''InternalGroup)
+
+$(deriveSafeCopy 0 'base ''File)
+
+$(deriveSafeCopy 0 'base ''Credentials)
+
+$(deriveSafeCopy 0 'base ''SignUpRequest)
+
+$(deriveSafeCopy 0 'base ''SignInRequest)
+
+$(deriveSafeCopy 0 'base ''ApiError)
+
+$(deriveSafeCopy 0 'base ''ApiResponse)
+-- }}}
+
+-- | we want to index a user by his name, API key and names of his files
+instance Indexable InternalUser where
+    empty = ixSet
+        [ ixFun $ (:[]) . iUserName
+        , ixFun $ (:[]) . iApiKey
+        , ixFun $ map fileName . iUserFiles
+        ]
+
+-- | we want to index a group by it's name, it's members' names, and names of
+-- it's files
+instance Indexable InternalGroup where
+    empty = ixSet
+        [ ixFun $ (:[]) . iGroupName
+        , ixFun $ iUsers
+        , ixFun $ map fileName . iGroupFiles
+        ]
