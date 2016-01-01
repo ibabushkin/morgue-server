@@ -2,7 +2,7 @@
 module Main where
 
 import Control.Exception (bracket)
-import Control.Monad (msum)
+import Control.Monad (msum, (>=>))
 import Control.Monad.IO.Class (liftIO)
 
 import Data.Acid
@@ -13,70 +13,52 @@ import Happstack.Server
 
 import API
 import Types
+import User (toSignUpRequest, toSignInRequest)
 import Util
 
 -- | our main application
 main :: IO ()
-main = do
+main =
     bracket (openLocalState initialMorgueState)
-            (createCheckpointAndClose)
+            createCheckpointAndClose
             (simpleHTTP nullConf . route)
 
+-- | our main application
 route :: AcidState Morgue -> ServerPart Response
 route acid = msum
-    [ dir "user" userApi
-    --, dir "group" groupApi
-    --, dir "files" fileApi
-    --, dirGen "morgue" getAgenda
+    [ dir "user" (userApi acid)
     , e404
     ]
 
 -- | our user-related API functions
-userApi :: ServerPart Response
-userApi = msum
-    {-[ dirGen "new" (run :: ApiCall SignUpRequest User)
-    , dirGen "auth" (run :: ApiCall SignInRequest User)
-    , e404-}
-    []
-
-{-
--- | our group-related API functions
-groupApi :: ServerPart Response
-groupApi = msum
-    [ dirGen "new" (run :: ApiCall GroupRequest Group)
-    , dirGen "add" (run :: ApiCall GroupAddRequest Group)
-    , e404
-    ]
-
--- | our file-related API functions
-fileApi :: ServerPart Response
-fileApi = msum
-    [ dirGen "browse" (run :: ApiCall User FileList)
-    , dirGen "pull" (run :: ApiCall FileRequest File)
-    , dirGen "push" (run :: ApiCall PushRequest FileName)
+userApi :: AcidState Morgue -> ServerPart Response
+userApi acid = msum
+    [ dirGen "new" (toSignUpRequest >=> actionIO acid SignUp)
+    , dirGen "auth" (toSignInRequest >=> actionIO acid SignIn)
     , e404
     ]
 
 -- | a wrapper around Happstack's `dir` to remove boilerplate
 -- from the generic functions below
-dirGen :: (ToJSON a, FromJSON r, ApiRequest r b c a)
-       => String
-       -> (r -> Update Morgue (ApiResponse r a))
-       -> ServerPart Response
-dirGen s resp = undefined
-      -}
+dirGen :: (ToJSON a, FromJSON r)
+       => String -> (r -> IO (ApiResponse a)) -> ServerPart Response
+dirGen s resp = dir s (apiGenIO resp)
 
 -- | an API call used for regular data exchange via JSON
 apiGen :: (ToJSON r, FromJSON i)
-            => (i -> IO j) -> (j -> ServerPart r) -> ServerPart Response
-apiGen get fun = do
+            => (i -> ServerPart r) -> ServerPart Response
+apiGen re = do
     method POST
     decodeBody (defaultBodyPolicy "/tmp/" 0 65536 65536)
     rBody <- liftIO . takeRequestBody =<< askRq
     case unBody <$> rBody >>= decode of
-      Just b -> do a <- liftIO $ get b
-                   fun a >>= ok . respond
-      Nothing -> ok $ respond (failure BadRequest :: ApiResponse i ())
+      Just b -> re b >>= ok . respond
+      Nothing -> ok $ respond (failure BadRequest :: ApiResponse ())
+
+-- | a version of the API call above for IO actions, includes verification
+apiGenIO :: (ToJSON a, FromJSON r)
+         => (r -> IO (ApiResponse a)) -> ServerPart Response
+apiGenIO re = apiGen (liftIO . re)
 
 -- | Docs Not Found.
 e404 :: ServerPart Response

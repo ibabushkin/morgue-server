@@ -288,19 +288,16 @@ instance ToJSON ApiError where
 
 -- | a response as returned by the API
 -- {{{
-newtype ApiResponse i r = ApiResponse (Either ApiError r)
+newtype ApiResponse r = ApiResponse (Either ApiError r)
     deriving (Functor, Applicative, Monad, Foldable, Traversable)
 
 -- | convert API responses to JSON
-instance ToJSON r => ToJSON (ApiResponse i r) where
+instance ToJSON r => ToJSON (ApiResponse r) where
     toJSON (ApiResponse (Left e)) =
         object ["result" .= Null, "error" .= e]
     toJSON (ApiResponse (Right r)) =
         object ["result" .= r, "error" .= Null]
 -- }}}
-
--- | an API call
-type ApiCall req res = req -> Update Morgue (ApiResponse req res) 
 
 -- | our main application
 data Morgue = Morgue { allUsers :: IxSet InternalUser
@@ -350,6 +347,6 @@ instance Indexable InternalUser where
 instance Indexable InternalGroup where
     empty = ixSet
         [ ixFun $ (:[]) . iGroupName
-        , ixFun $ iUsers
+        , ixFun iUsers
         , ixFun $ map fileName . iGroupFiles
         ]

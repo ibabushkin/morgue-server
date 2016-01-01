@@ -13,11 +13,11 @@ import Types
 
 -- {{{ API helpers
 -- | successful API response
-success :: a -> ApiResponse i a
+success :: a -> ApiResponse a
 success = ApiResponse . Right
 
 -- | failed API response
-failure :: ApiError -> ApiResponse i a
+failure :: ApiError -> ApiResponse a
 failure = ApiResponse . Left
 
 -- | process anything that can be encoded as JSON to a Response
@@ -26,7 +26,7 @@ respond = toResponse . encodePretty' (defConfig { confCompare = compare })
 -- }}}
 
 liftStore :: (a -> Update Morgue b)
-          -> ApiResponse r a -> Update Morgue (ApiResponse r b)
+          -> ApiResponse a -> Update Morgue (ApiResponse b)
 liftStore f a = sequence $ f <$> a
 
 initialMorgueState :: Morgue

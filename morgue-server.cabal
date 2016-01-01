@@ -17,10 +17,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     API,
-                       Files,
-                       Group,
+                       --Group,
                        Main,
-                       Morgue,
                        Types,
                        User,
                        Util
@@ -42,14 +40,15 @@ library
                        transformers >=0.4 && <0.5,
                        text >=1.2,
                        entropy >= 0.3,
-                       morgue == 0.*
+                       morgue == 0.*,
+                       template-haskell >= 2.10.0.0
   hs-source-dirs:      src
   --ghc-options:         -Wall
   default-language:    Haskell2010
 
 executable morgue-server
   main-is:             Main.hs
-  other-modules:       API, Files, Group, Morgue, Types, User, Util
+  other-modules:       API, Types, User, Util
   other-extensions:    OverloadedStrings, GeneralizedNewtypeDeriving
   build-depends:       base >=4.8 && <4.9,
                        mtl >= 2.2.1,
@@ -69,7 +68,8 @@ executable morgue-server
                        transformers >=0.4 && <0.5,
                        text >=1.2,
                        entropy >= 0.3,
-                       morgue == 0.*
+                       morgue == 0.*,
+                       template-haskell >= 2.10.0.0
   hs-source-dirs:      src
   default-language:    Haskell2010
 

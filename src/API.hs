@@ -11,50 +11,41 @@ import Data.Acid
 
 import Happstack.Server ()
 
+import TemplateUtil
 import Types
 import User
 import Util
 
-{- | an API request. This is a bit more complicated compared to what I
-usually write. An `ApiRequest`'s processing is sliced into layers, of
-which there are three, represented by the functions `provide`, `process`,
-and `store`, respectively. The request gets transformed step-by-step.
-An explanation of types present:
-* `r` is the request itself, which is used to gather data needed for it's
-  processing. This is done by `provide`.
-* `i` is data needed to compute the result of a request, passed on to
-  `process` (stage two).
-* `process`, in turn, returns a value of type `v` which is the result of the
-  computation and which is passed to `store` which is intended to store it,
-  but might choose to transform it before returning, resulting in a value of
-  type `v2`. However, each of those types is wrapped in a `ApiResponse` to
-  allow for error handling etc.
--}
-class ApiRequest r i v v2 | r -> i v v2, i -> r where
-    provide :: r -> Query Morgue i
-    process :: i -> ApiResponse r v
-    store :: ApiResponse r v -> Update Morgue (ApiResponse r v2)
+-- {{{ synonyms for commonly used function types
 
-run :: ApiRequest r i v v2 => r -> Update Morgue (ApiResponse r v2)
-run req = liftQuery (process <$> provide req) >>= store
+-- | gather data from our datastore
+type Provider r i = r -> Query Morgue i
+-- | process said data
+type Processor i r = i -> ApiResponse r
+-- | store the data and optionally transform it to something else
+type StorageBackend r' = ApiResponse r' -> Update Morgue (ApiResponse r')
+-- | transform the result of an API call to something suited for the caller's eyes
+type Transformer r' r = r' -> r
+-- }}}
 
--- | requests to sign up
-instance ApiRequest SignUpRequest SignUpData InternalUser User where
-    provide = signUpProvider
-    process = makeUser
-    store = liftStore storeUser
+-- | process an API request by combining functions of the appropriate type
+run :: Provider req int
+    -> Processor int res'
+    -> StorageBackend res'
+    -> Transformer res' res
+    -> req -> Update Morgue (ApiResponse res)
+run provide process store trans req = fmap (fmap trans) $
+    liftQuery (process <$> provide req) >>= store
 
-signUp :: SignUpRequest -> Update Morgue (ApiResponse SignUpRequest User)
-signUp = run
+-- {{{ boilerplate functions used for API calls, representing complete request pipelines
 
--- | requests to sign in
-instance ApiRequest SignInRequest SignInData InternalUser User where
-    provide = signInProvider
-    process = loginUser
-    store = liftStore updateUser
+-- | signing up
+signUp :: SignUpRequest -> Update Morgue (ApiResponse User)
+signUp = run signUpProvider makeUser (liftStore storeUser) toUser
 
-signIn :: SignInRequest -> Update Morgue (ApiResponse SignInRequest User)
-signIn = run
+-- | logging in
+signIn :: SignInRequest -> Update Morgue (ApiResponse User)
+signIn = run signInProvider loginUser (liftStore updateUser) toUser
 
 -- | derive IsAcidic instances
 $(makeAcidic ''Morgue
@@ -64,3 +55,10 @@ $(makeAcidic ''Morgue
   , 'signUp
   , 'signIn
   ])
+
+actionIO :: ( UpdateEvent event
+            , EventState event ~ Morgue
+            , EventResult event ~ ApiResponse b)
+         => AcidState Morgue
+         -> (a -> event) -> a -> IO (ApiResponse b)
+actionIO acid func = update acid . func
