@@ -26,17 +26,29 @@ main =
 -- | our main application
 route :: AcidState Morgue -> ServerPart Response
 route acid = msum
-    [ dir "user" (userApi acid)
+    [ dir "user" $ userApi acid
+    , dir "group" $ groupApi acid
     , e404
     ]
 
 -- | our user-related API functions
 userApi :: AcidState Morgue -> ServerPart Response
 userApi acid = msum
-    [ dirGen "new" (toSignUpRequest >=> actionIO acid SignUp)
-    , dirGen "auth" (toSignInRequest >=> actionIO acid SignIn)
+    [ dirGen "new"  $ toSignUpRequest >=> actionIO acid SignUp
+    , dirGen "auth" $ toSignInRequest >=> actionIO acid SignIn
+    , dirGen "push" $ actionIO acid PushU
+    , dirGen "pull" $ actionIO acid PullU
     , e404
     ]
+
+groupApi :: AcidState Morgue -> ServerPart Response
+groupApi acid = msum
+   [ dirGen "new"  $ actionIO acid GroupNew
+   , dirGen "add"  $ actionIO acid GroupAdd
+   , dirGen "push" $ actionIO acid PushG
+   , dirGen "pull" $ actionIO acid PullG
+   , e404
+   ]
 
 -- | a wrapper around Happstack's `dir` to remove boilerplate
 -- from the generic functions below

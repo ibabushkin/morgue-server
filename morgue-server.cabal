@@ -17,7 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     API,
-                       --Group,
+                       Group,
                        Main,
                        Types,
                        User,
@@ -36,7 +36,6 @@ library
                        bytestring >=0.10 && <0.11,
                        SHA >=1.6 && <1.7,
                        entropy >=0.3 && <0.4,
-                       split >=0.2 && <0.3,
                        transformers >=0.4 && <0.5,
                        text >=1.2,
                        entropy >= 0.3,
@@ -48,7 +47,7 @@ library
 
 executable morgue-server
   main-is:             Main.hs
-  other-modules:       API, Types, User, Util
+  other-modules:       API, Group, Types, User, Util
   other-extensions:    OverloadedStrings, GeneralizedNewtypeDeriving
   build-depends:       base >=4.8 && <4.9,
                        mtl >= 2.2.1,
@@ -64,7 +63,6 @@ executable morgue-server
                        bytestring >=0.10 && <0.11,
                        SHA >=1.6 && <1.7,
                        entropy >=0.3 && <0.4,
-                       split >=0.2 && <0.3,
                        transformers >=0.4 && <0.5,
                        text >=1.2,
                        entropy >= 0.3,

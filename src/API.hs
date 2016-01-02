@@ -11,7 +11,7 @@ import Data.Acid
 
 import Happstack.Server ()
 
-import TemplateUtil
+import Group
 import Types
 import User
 import Util
@@ -47,13 +47,35 @@ signUp = run signUpProvider makeUser (liftStore storeUser) toUser
 signIn :: SignInRequest -> Update Morgue (ApiResponse User)
 signIn = run signInProvider loginUser (liftStore updateUser) toUser
 
+pushU :: PushURequest -> Update Morgue (ApiResponse FileName)
+pushU = run pushUProvider addFileToUser (liftStore updateUser) getLastFile
+
+pullU :: PullURequest -> Update Morgue (ApiResponse File)
+pullU = run pullUProvider getFileFromUser return id
+
+groupNew :: GroupNewRequest -> Update Morgue (ApiResponse Group)
+groupNew = run groupNewProvider makeGroup (liftStore storeGroup) toGroup
+
+groupAdd :: GroupAddRequest -> Update Morgue (ApiResponse Group)
+groupAdd = run groupAddProvider
+    addUserToGroup (liftStore updateGroup) toGroup
+
+pushG :: PushGRequest -> Update Morgue (ApiResponse Group)
+pushG = run pushGProvider addFileToGroup (liftStore updateGroup) toGroup
+
+pullG :: PullGRequest -> Update Morgue (ApiResponse File)
+pullG = run pullGProvider getFileFromGroup return id
+
 -- | derive IsAcidic instances
 $(makeAcidic ''Morgue
-  [ 'signUpProvider
-  , 'signInProvider
-  , 'packUser
-  , 'signUp
+  [ 'signUp
   , 'signIn
+  , 'pushU
+  , 'pullU
+  , 'groupNew
+  , 'groupAdd
+  , 'pushG
+  , 'pullG
   ])
 
 actionIO :: ( UpdateEvent event

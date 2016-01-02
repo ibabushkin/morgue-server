@@ -5,7 +5,7 @@ import Control.Monad.State (get, put)
 
 import Crypto.Scrypt
 
-import Data.Acid (Query, Update, makeAcidic)
+import Data.Acid (Query, Update)
 import qualified Data.ByteString.Lazy as B
 import Data.Digest.Pure.SHA
 import Data.IxSet
@@ -16,6 +16,24 @@ import System.Entropy
 import Types
 import Util
 
+-- {{{ utility functions
+
+-- | generate a user's API key
+genApiKey :: IO ApiKey
+genApiKey = pack . showDigest <$> (hmacSha256 <$>
+    (B.fromStrict <$> getEntropy 256) <*>
+    (B.fromStrict <$> getEntropy 256))
+
+-- | transform a SignUpRequest as passed to our application to a version
+-- suited for pure computation
+toSignUpRequest :: SignUpRequest' -> IO SignUpRequest
+toSignUpRequest req =
+    SignUpRequest (suRqCreds' req) <$> genApiKey <*> newSalt
+
+toSignInRequest :: SignInRequest' -> IO SignInRequest
+toSignInRequest req =
+    SignInRequest (siRqCreds' req) <$> genApiKey
+
 -- | store a user, updating it if told so
 packUser :: Bool -> InternalUser -> Update Morgue InternalUser
 packUser update user = do
@@ -25,9 +43,20 @@ packUser update user = do
     where func | update = updateIx (iUserName user)
                | otherwise = insert
 
+-- | store a new user
+storeUser :: InternalUser -> Update Morgue InternalUser
+storeUser = packUser False
+
+-- | update an existing user
+updateUser :: InternalUser -> Update Morgue InternalUser
+updateUser = packUser True
+
 -- | conversion for public access
 toUser :: InternalUser -> User
 toUser = User <$> iUserName <*> iApiKey
+-- }}}
+
+-- {{{ signing up
 
 -- | provide data needed for signup. We don't do any IO here
 signUpProvider :: SignUpRequest -> Query Morgue SignUpData
@@ -42,10 +71,9 @@ makeUser (SignUpRequest creds apiKey salt, Nothing) = success $
     where encPass = B.fromStrict . getEncryptedPass $
               encryptPass' salt (Pass . B.toStrict $ uPass creds)
 makeUser (_, Just _) = failure EntityAlreadyExists
+-- }}}
 
--- | store a user
-storeUser :: InternalUser -> Update Morgue InternalUser
-storeUser = packUser False
+-- {{{ logging in
 
 -- | provide data from a login request 
 signInProvider :: SignInRequest -> Query Morgue SignInData
@@ -65,23 +93,47 @@ loginUser (encPass, Just user@(InternalUser _ _ pass _), newApiKey)
               (Pass $ B.toStrict pass)
               (EncryptedPass $ B.toStrict encPass)
 loginUser (_, Nothing, _) = failure AuthError
+-- }}}
 
--- | update a user
-updateUser :: InternalUser -> Update Morgue InternalUser
-updateUser = packUser True
+-- {{{ uploading a file
 
--- | generate a user's API key
-genApiKey :: IO ApiKey
-genApiKey = pack . showDigest <$> (hmacSha256 <$>
-    (B.fromStrict <$> getEntropy 256) <*>
-    (B.fromStrict <$> getEntropy 256))
+-- | provide data from a user-push request
+pushUProvider :: PushURequest -> Query Morgue PushUData
+pushUProvider (PushURequest user file) = do
+    morgue <- ask
+    return (getOne $ allUsers morgue @= user, file)
 
--- | transform a SignUpRequest as passed to our application to a version
--- suited for pure computation
-toSignUpRequest :: SignUpRequest' -> IO SignUpRequest
-toSignUpRequest req =
-    SignUpRequest (suRqCreds' req) <$> genApiKey <*> newSalt
+-- | add a file to a user's files
+addFileToUser :: PushUData -> ApiResponse InternalUser
+addFileToUser (Just user, file)
+    | file `elem` (iUserFiles user) = failure EntityAlreadyExists
+    | otherwise = success $ user { iUserFiles = file : iUserFiles user }
+addFileToUser (Nothing, _) = failure AuthError
 
-toSignInRequest :: SignInRequest' -> IO SignInRequest
-toSignInRequest req =
-    SignInRequest (siRqCreds' req) <$> genApiKey
+-- | get a user's last file 
+getLastFile :: InternalUser -> FileName
+getLastFile = fileName . head . iUserFiles
+
+-- }}}
+
+-- {{{ downloading a file
+
+-- | provide data from a user-pull request
+pullUProvider :: PullURequest -> Query Morgue PullUData
+pullUProvider (PullURequest user fileName) = do
+    morgue <- ask
+    return (getOne $ allUsers morgue @= user, fileName)
+
+-- | get a file from a user, looking it up by name
+getFileFromUser :: PullUData -> ApiResponse File
+getFileFromUser (Just user, fName) =
+    case filter ((==fName) . fileName) $ iUserFiles user of
+      [file] -> success file
+      [] -> failure NoSuchEntity
+getFileFromUser (Nothing, _) = failure AuthError
+
+-- }}}
+
+-- {{{ listing available files
+
+-- }}}

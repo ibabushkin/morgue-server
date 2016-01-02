@@ -26,7 +26,6 @@ import Data.IxSet ( Indexable(..), IxSet(..), (@=)
                   , Proxy(..), getOne, ixFun, ixSet)
 import qualified Data.IxSet as IxSet
 import Data.List (intercalate)
-import Data.List.Split (splitOn)
 import Data.Morgue.AgendaGenerator as Export (AgendaMode(..))
 import Data.Morgue.Format as Export (OutputFormat(..))
 import qualified Data.Morgue.Options as O
@@ -44,7 +43,7 @@ newtype GroupName = GroupName { getGName :: Text }
     deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
 -- | a File's name, by path components
-newtype FileName = FileName { getFName :: [Text] }
+newtype FileName = FileName { getFName :: Text }
     deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
 type FileContent = Text
@@ -99,7 +98,7 @@ instance FromJSON O.Options where
 -- {{{
 data User = User { userName :: UserName -- ^ name of the user
                  , apiKey :: ApiKey -- ^ user's API key
-                 } deriving (Show, Read, Eq)
+                 } deriving (Show, Read, Eq, Ord)
 
 -- | Users are frequently passed to the API
 instance ToJSON User where
@@ -126,6 +125,11 @@ data InternalUser = InternalUser
 data Group = Group { groupName :: GroupName
                    , users :: [UserName]
                    }
+
+-- | Groups are returned from the API as well
+instance ToJSON Group where
+    toJSON (Group n u) = object ["name" .= n, "members" .= u]
+
 -- }}}
 
 -- | internal representation of a group
@@ -133,7 +137,7 @@ data Group = Group { groupName :: GroupName
 data InternalGroup = InternalGroup
     { iGroupName :: GroupName
     , iUsers :: [UserName]
-    , iGroupFiles :: [File]
+    , iGroupFiles :: [File] -- maybe we should rather use a Set
     } deriving (Eq, Ord, Show, Read, Data, Typeable)
 
 -- }}}
@@ -143,7 +147,13 @@ data InternalGroup = InternalGroup
 data File = File
     { fileName :: FileName
     , fileContents :: FileContent
-    } deriving (Eq, Ord, Show, Read, Data, Typeable)
+    } deriving (Show, Read, Data, Typeable)
+
+instance Eq File where
+    a == b = fileName a == fileName b
+
+instance Ord File where
+    a <= b = fileName a <= fileName b
 
 -- | To encode files in JSON, we need to encode newlines on the fly 
 instance ToJSON File where
@@ -155,57 +165,72 @@ instance FromJSON File where
     parseJSON _ = mempty
 -- }}}
 
--- | a list of files, with an owner
--- {{{
-data FileList = FileList { ownerName :: UserName
-                         , fileNames :: [FileName]
-                         } deriving (Show, Read, Eq)
-
--- | FileLists are returned by an API call
-instance ToJSON FileList where
-    toJSON (FileList n fs) = object ["name" .= n, "files" .= fs]
-
-type FileListData = (UserName, [GroupName])
--- }}}
-
 -- | a request to push a file
 -- {{{
-data PushRequest = PushRequest { pRqUser :: User
-                               , pRqGroup ::  Maybe GroupName
-                               , pRqFile ::  File
-                               }
+data PushURequest = PushURequest { pURqUser :: User
+                                 , pURqFile :: File
+                                 }
 
-instance FromJSON PushRequest where
-    parseJSON (Object v) = PushRequest <$>
-        (v .: "user" >>= parseJSON) <*>
-            (v .:? "group") <*> (v .: "file" >>= parseJSON)
+instance FromJSON PushURequest where
+    parseJSON (Object v) = PushURequest <$>
+        (v .: "user" >>= parseJSON) <*> (v .: "file" >>= parseJSON)
     parseJSON _ = mempty
 
-type PushData = (FileList, File)
+type PushUData = (Maybe InternalUser, File)
+
+data PushGRequest = PushGRequest { pGRqUser :: User
+                                 , pGRqGroup :: GroupName
+                                 , pGRqFile :: File
+                                 }
+
+instance FromJSON PushGRequest where
+    parseJSON (Object v) = PushGRequest <$>
+        (v .: "user" >>= parseJSON) <*> (v .: "group") <*>
+            (v .: "file" >>= parseJSON)
+    parseJSON _ = mempty
+
+type PushGData = (Maybe InternalUser, Maybe InternalGroup, File)
 -- }}}
 
 -- | A request to pull a file
 -- {{{
-data FileRequest = FileRequest { fRqUser :: User
-                               , fRqFileName :: FileName
-                               }
+data PullURequest = PullURequest { fURqUser :: User
+                                 , fURqFileName :: FileName
+                                 }
 
-instance FromJSON FileRequest where
-    parseJSON (Object v) = FileRequest <$>
+instance FromJSON PullURequest where
+    parseJSON (Object v) = PullURequest <$>
         (v .: "user" >>= parseJSON) <*> v .: "filename"
     parseJSON _ = mempty
+
+type PullUData = (Maybe InternalUser, FileName)
+
+data PullGRequest = PullGRequest { fGRqUser :: User
+                                 , fGRqGroup :: GroupName
+                                 , fGRqFileName :: FileName
+                                 }
+
+instance FromJSON PullGRequest where
+    parseJSON (Object v) = PullGRequest <$>
+        (v .: "user" >>= parseJSON) <*> v .: "group" <*> v .: "filename"
+    parseJSON _ = mempty
+
+type PullGData = (Maybe InternalUser, Maybe InternalGroup, FileName)
+
 -- }}}
 
 -- | A request to create a group
 -- {{{
-data GroupRequest = GroupRequest { gRqUser :: User
-                                 , gRqGroupName ::  GroupName
-                                 }
+data GroupNewRequest = GroupNewRequest { gRqUser :: User
+                                       , gRqGroupName ::  GroupName
+                                       }
 
-instance FromJSON GroupRequest where
-    parseJSON (Object v) = GroupRequest <$>
+instance FromJSON GroupNewRequest where
+    parseJSON (Object v) = GroupNewRequest <$>
         (v .: "user" >>= parseJSON) <*> v .: "groupname"
     parseJSON _ = mempty
+
+type GroupNewData = (Maybe InternalUser, GroupName, Maybe InternalGroup)
 -- }}}
 
 -- | A request to add a fellow user to a group
@@ -222,7 +247,8 @@ instance FromJSON GroupAddRequest where
         v .: "username"
     parseJSON _ = mempty
 
-type GroupAddData = (Group, UserName)
+type GroupAddData = (Maybe InternalUser, Maybe InternalGroup, Maybe InternalUser)
+
 -- }}}
 
 -- | A request to get an agenda or outline for a set of files
@@ -321,6 +347,8 @@ $(deriveSafeCopy 0 'base ''User)
 
 $(deriveSafeCopy 0 'base ''InternalGroup)
 
+$(deriveSafeCopy 0 'base ''Group)
+
 $(deriveSafeCopy 0 'base ''File)
 
 $(deriveSafeCopy 0 'base ''Credentials)
@@ -328,6 +356,18 @@ $(deriveSafeCopy 0 'base ''Credentials)
 $(deriveSafeCopy 0 'base ''SignUpRequest)
 
 $(deriveSafeCopy 0 'base ''SignInRequest)
+
+$(deriveSafeCopy 0 'base ''PushURequest)
+
+$(deriveSafeCopy 0 'base ''PushGRequest)
+
+$(deriveSafeCopy 0 'base ''PullURequest)
+
+$(deriveSafeCopy 0 'base ''PullGRequest)
+
+$(deriveSafeCopy 0 'base ''GroupNewRequest)
+
+$(deriveSafeCopy 0 'base ''GroupAddRequest)
 
 $(deriveSafeCopy 0 'base ''ApiError)
 
@@ -338,7 +378,7 @@ $(deriveSafeCopy 0 'base ''ApiResponse)
 instance Indexable InternalUser where
     empty = ixSet
         [ ixFun $ (:[]) . iUserName
-        , ixFun $ (:[]) . iApiKey
+        , ixFun $ \us -> [User (iUserName us) (iApiKey us)]
         , ixFun $ map fileName . iUserFiles
         ]
 
