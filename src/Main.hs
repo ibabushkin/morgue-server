@@ -38,6 +38,7 @@ userApi acid = msum
     , dirGen "auth" $ toSignInRequest >=> actionIO acid SignIn
     , dirGen "push" $ actionIO acid PushU
     , dirGen "pull" $ actionIO acid PullU
+    , dirGen "list" $ actionIO acid List
     , e404
     ]
 

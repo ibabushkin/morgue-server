@@ -13,6 +13,7 @@ import Data.Text (pack)
 
 import System.Entropy
 
+import Group (toGroupFileList)
 import Types
 import Util
 
@@ -136,4 +137,19 @@ getFileFromUser (Nothing, _) = failure AuthError
 
 -- {{{ listing available files
 
+-- | provide data from a user-list request
+listProvider :: ListRequest -> Query Morgue ListData
+listProvider req = do
+    morgue <- ask
+    return ( getOne $ allUsers morgue @= user
+           , toList $ allGroups morgue @= (userName user)
+           )
+    where user = lRqUser req
+
+-- | list all files from a user and a list of groups
+toFileList :: ListData -> ApiResponse FileList
+toFileList (Just user, groups) = success $
+    FileList (iUserName user) (map fileName $ iUserFiles user)
+        (map toGroupFileList groups)
+toFileList (Nothing, _) = failure AuthError
 -- }}}

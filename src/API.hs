@@ -66,6 +66,9 @@ pushG = run pushGProvider addFileToGroup (liftStore updateGroup) toGroup
 pullG :: PullGRequest -> Update Morgue (ApiResponse File)
 pullG = run pullGProvider getFileFromGroup return id
 
+list :: ListRequest -> Update Morgue (ApiResponse FileList)
+list = run listProvider toFileList  return id
+
 -- | derive IsAcidic instances
 $(makeAcidic ''Morgue
   [ 'signUp
@@ -76,6 +79,7 @@ $(makeAcidic ''Morgue
   , 'groupAdd
   , 'pushG
   , 'pullG
+  , 'list
   ])
 
 actionIO :: ( UpdateEvent event

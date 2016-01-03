@@ -165,6 +165,38 @@ instance FromJSON File where
     parseJSON _ = mempty
 -- }}}
 
+-- | a list of files, possibly owned by up to one user and zero or more groups
+-- {{{
+data GroupFileList = GroupFileList GroupName [FileName]
+
+instance FromJSON GroupFileList where
+    parseJSON (Object v) = GroupFileList <$>
+        (v .: "group") <*> (v .: "files")
+
+instance ToJSON GroupFileList where
+    toJSON (GroupFileList gName gFiles) =
+        object [ "group" .= gName, "files" .= gFiles]
+
+data FileList = FileList
+    { fUserName :: UserName
+    , fUserFiles :: [FileName]
+    , fGroupFiles :: [GroupFileList]
+    }
+
+instance FromJSON FileList where
+    parseJSON (Object v) = FileList <$>
+        (v .: "user") <*> (v .: "user_files") <*> (v .: "group_files")
+    parseJSON _ = mempty
+
+instance ToJSON FileList where
+    toJSON (FileList uName uFiles gFiles) =
+        object [ "user" .= uName
+               , "user_files" .= uFiles
+               , "group_files" .= gFiles
+               ]
+
+-- }}}
+
 -- | a request to push a file
 -- {{{
 data PushURequest = PushURequest { pURqUser :: User
@@ -190,6 +222,14 @@ instance FromJSON PushGRequest where
     parseJSON _ = mempty
 
 type PushGData = (Maybe InternalUser, Maybe InternalGroup, File)
+-- }}}
+
+-- | A request to list all available files
+-- {{{
+newtype ListRequest = ListRequest { lRqUser :: User }
+    deriving FromJSON
+
+type ListData = (Maybe InternalUser, [InternalGroup])
 -- }}}
 
 -- | A request to pull a file
@@ -247,7 +287,8 @@ instance FromJSON GroupAddRequest where
         v .: "username"
     parseJSON _ = mempty
 
-type GroupAddData = (Maybe InternalUser, Maybe InternalGroup, Maybe InternalUser)
+type GroupAddData =
+    (Maybe InternalUser, Maybe InternalGroup, Maybe InternalUser)
 
 -- }}}
 
@@ -351,11 +392,17 @@ $(deriveSafeCopy 0 'base ''Group)
 
 $(deriveSafeCopy 0 'base ''File)
 
+$(deriveSafeCopy 0 'base ''GroupFileList)
+
+$(deriveSafeCopy 0 'base ''FileList)
+
 $(deriveSafeCopy 0 'base ''Credentials)
 
 $(deriveSafeCopy 0 'base ''SignUpRequest)
 
 $(deriveSafeCopy 0 'base ''SignInRequest)
+
+$(deriveSafeCopy 0 'base ''ListRequest)
 
 $(deriveSafeCopy 0 'base ''PushURequest)
 
