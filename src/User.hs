@@ -9,7 +9,10 @@ import Data.Acid (Query, Update)
 import qualified Data.ByteString.Lazy as B
 import Data.Digest.Pure.SHA
 import Data.IxSet
-import Data.Text (pack)
+import qualified Data.Morgue.Agenda as A
+import qualified Data.Morgue.Outline as O
+import Data.Morgue.Options
+import Data.Text (pack, unpack)
 
 import System.Entropy
 
@@ -152,4 +155,49 @@ toFileList (Just user, groups) = success $
     FileList (iUserName user) (map fileName $ iUserFiles user)
         (map toGroupFileList groups)
 toFileList (Nothing, _) = failure AuthError
+-- }}}
+
+-- {{{ processing files to an agenda
+
+-- | procide data from a processing request
+processingProvider :: ProcessingRequest -> Query Morgue ProcessingData
+processingProvider (ProcessingRequest user opts fList) = do
+    morgue <- ask
+    return ( getOne $ allUsers morgue @= user
+           , toList $ allGroups morgue @= user
+           , fList
+           , opts
+           )
+
+processFiles :: ProcessingData -> ApiResponse String
+processFiles (Just user, groups, (FileList _ uFiles gFiles), opts) = 
+    processor opts <$> (unpack files)
+    where files = concat . concat $ (:) <$>
+                matchFiles (iUserFiles user) uFiles <*>
+               (matchGroups groups gFiles >>= mapM (uncurry matchFiles))
+          processor = case opts of
+                        AgendaOptions{} -> A.getAgenda
+                        OutlineOptions{} -> O.getOutline
+processFiles (Nothing, _, _, _) = failure AuthError
+
+-- | get all matching files from a list and return an error in case of
+-- missing files
+matchFiles :: [File] -> [FileName] -> ApiResponse [FileContent]
+matchFiles files fNames = foldr go (success []) fNames
+    where files' = map ((,) <$> fileName <*> id) files
+          go f fs = case lookup f files' of
+                      Just file -> (fileContents file:) <$> fs
+                      Nothing -> failure NoSuchEntity
+
+-- | get all matching groups from a list and return an error in case of
+-- missing groups
+matchGroups :: [InternalGroup]
+           -> [GroupFileList] -> ApiResponse [([File], [FileName])]
+matchGroups groups gLists = foldr go (success []) gLists
+    where groups' = map ((,) <$> iGroupName <*> id) groups
+          go (GroupFileList g fs) gs = case lookup g groups' of
+                                         Just gr ->
+                                             ((iGroupFiles gr, fs):) <$> gs
+                                         Nothing -> failure NoAccess
+
 -- }}}

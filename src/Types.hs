@@ -167,7 +167,9 @@ instance FromJSON File where
 
 -- | a list of files, possibly owned by up to one user and zero or more groups
 -- {{{
-data GroupFileList = GroupFileList GroupName [FileName]
+data GroupFileList = GroupFileList { gFileListName :: GroupName
+                                   , gFileListFiles :: [FileName]
+                                   }
 
 instance FromJSON GroupFileList where
     parseJSON (Object v) = GroupFileList <$>
@@ -296,8 +298,10 @@ type GroupAddData =
 -- {{{
 data ProcessingRequest = ProcessingRequest { prRqUser :: User
                                            , prRqOptions ::  O.Options
-                                           , prRqFileNames :: [FileName]
+                                           , prRqFiles :: FileList
                                            }
+
+type ProcessingData = (Maybe InternalUser, [InternalGroup], FileList, O.Options)
 
 instance FromJSON ProcessingRequest where
     parseJSON (Object v) = ProcessingRequest <$>
