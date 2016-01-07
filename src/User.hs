@@ -13,6 +13,7 @@ import qualified Data.Morgue.Agenda as A
 import qualified Data.Morgue.Outline as O
 import Data.Morgue.Options
 import Data.Text (pack, unpack)
+import Data.Time
 
 import System.Entropy
 
@@ -37,6 +38,11 @@ toSignUpRequest req =
 toSignInRequest :: SignInRequest' -> IO SignInRequest
 toSignInRequest req =
     SignInRequest (siRqCreds' req) <$> genApiKey
+
+toProcessingRequest :: ProcessingRequest' -> IO ProcessingRequest
+toProcessingRequest req =
+    ProcessingRequest (prRqUser' req) (prRqOptions' req) (prRqFiles' req) <$>
+        getCurrentTime <*> getCurrentTimeZone
 
 -- | store a user, updating it if told so
 packUser :: Bool -> InternalUser -> Update Morgue InternalUser
@@ -161,24 +167,28 @@ toFileList (Nothing, _) = failure AuthError
 
 -- | procide data from a processing request
 processingProvider :: ProcessingRequest -> Query Morgue ProcessingData
-processingProvider (ProcessingRequest user opts fList) = do
+processingProvider (ProcessingRequest user opts fList tz time) = do
     morgue <- ask
     return ( getOne $ allUsers morgue @= user
            , toList $ allGroups morgue @= user
            , fList
            , opts
+           , tz
+           , time
            )
 
+-- | process files
 processFiles :: ProcessingData -> ApiResponse String
-processFiles (Just user, groups, (FileList _ uFiles gFiles), opts) = 
-    processor opts <$> (unpack files)
-    where files = concat . concat $ (:) <$>
-                matchFiles (iUserFiles user) uFiles <*>
-               (matchGroups groups gFiles >>= mapM (uncurry matchFiles))
+processFiles (Just user, groups, (FileList _ uFiles gFiles), opts, time, tz) = 
+    processor <$> files
+    where opts' = convertOptions opts
+          files = (unpack . mconcat . mconcat) <$>
+              ((:) <$> matchFiles (iUserFiles user) uFiles <*>
+               (matchGroups groups gFiles >>= mapM (uncurry matchFiles)))
           processor = case opts of
-                        AgendaOptions{} -> A.getAgenda
-                        OutlineOptions{} -> O.getOutline
-processFiles (Nothing, _, _, _) = failure AuthError
+                        SAgendaOptions{} -> A.getAgenda opts' tz time
+                        SOutlineOptions{} -> O.getOutline opts'
+processFiles (Nothing, _, _, _, _, _) = failure AuthError
 
 -- | get all matching files from a list and return an error in case of
 -- missing files

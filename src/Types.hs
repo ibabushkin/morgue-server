@@ -32,6 +32,7 @@ import qualified Data.Morgue.Options as O
 import Data.SafeCopy (base, deriveSafeCopy)
 import qualified Data.Text as T
 import Data.Text (Text)
+import Data.Time
 
 import Text.Read (readMaybe)
 
@@ -79,16 +80,14 @@ instance FromJSON OutputFormat where
           _ -> mempty
     parseJSON _ = mempty
 
-instance FromJSON O.Options where
-    parseJSON (Object v) = (O.AgendaOptions <$>
+instance FromJSON O.SimpleOptions where
+    parseJSON (Object v) = (O.SAgendaOptions <$>
         (v .: "mode") <*>
         (v .: "double_spaces") <*>
         (v .:? "tags") <*>
         (v .:? "skip_tags") <*>
         (v .: "num_days") <*>
-        pure Prelude.putStrLn <*>
-        (v .: "format")) <|> (O.OutlineOptions <$>
-        pure Prelude.putStrLn <*>
+        (v .: "format")) <|> (O.SOutlineOptions <$>
         (v .: "format"))
         where helper (Just a) = return a
               helper Nothing = fail ""
@@ -297,14 +296,22 @@ type GroupAddData =
 -- | A request to get an agenda or outline for a set of files
 -- {{{
 data ProcessingRequest = ProcessingRequest { prRqUser :: User
-                                           , prRqOptions ::  O.Options
+                                           , prRqOptions ::  O.SimpleOptions
                                            , prRqFiles :: FileList
+                                           , utcTime :: UTCTime
+                                           , timezone :: TimeZone
                                            }
 
-type ProcessingData = (Maybe InternalUser, [InternalGroup], FileList, O.Options)
+type ProcessingData = (Maybe InternalUser, [InternalGroup], FileList,
+    O.SimpleOptions, UTCTime, TimeZone)
 
-instance FromJSON ProcessingRequest where
-    parseJSON (Object v) = ProcessingRequest <$>
+data ProcessingRequest' = ProcessingRequest' { prRqUser' :: User
+                                             , prRqOptions' ::  O.SimpleOptions
+                                             , prRqFiles' :: FileList
+                                             }
+
+instance FromJSON ProcessingRequest' where
+    parseJSON (Object v) = ProcessingRequest' <$>
         (v .: "user" >>= parseJSON) <*>
         (v .: "options" >>= parseJSON) <*>
         v .: "files"
@@ -376,6 +383,10 @@ data Morgue = Morgue { allUsers :: IxSet InternalUser
                      }
 
 -- {{{ derive SafeCopy instances for our types
+$(deriveSafeCopy 0 'base ''O.SimpleOptions)
+$(deriveSafeCopy 0 'base ''OutputFormat)
+$(deriveSafeCopy 0 'base ''AgendaMode)
+
 $(deriveSafeCopy 0 'base ''Salt)
 
 $(deriveSafeCopy 0 'base ''Morgue)
@@ -419,6 +430,8 @@ $(deriveSafeCopy 0 'base ''PullGRequest)
 $(deriveSafeCopy 0 'base ''GroupNewRequest)
 
 $(deriveSafeCopy 0 'base ''GroupAddRequest)
+
+$(deriveSafeCopy 0 'base ''ProcessingRequest)
 
 $(deriveSafeCopy 0 'base ''ApiError)
 

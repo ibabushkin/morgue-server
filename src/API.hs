@@ -69,6 +69,9 @@ pullG = run pullGProvider getFileFromGroup return id
 list :: ListRequest -> Update Morgue (ApiResponse FileList)
 list = run listProvider toFileList  return id
 
+processing :: ProcessingRequest -> Update Morgue (ApiResponse String)
+processing = run processingProvider processFiles return id
+
 -- | derive IsAcidic instances
 $(makeAcidic ''Morgue
   [ 'signUp
@@ -80,6 +83,7 @@ $(makeAcidic ''Morgue
   , 'pushG
   , 'pullG
   , 'list
+  , 'processing
   ])
 
 actionIO :: ( UpdateEvent event
