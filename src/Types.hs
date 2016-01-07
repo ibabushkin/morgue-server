@@ -179,20 +179,18 @@ instance ToJSON GroupFileList where
         object [ "group" .= gName, "files" .= gFiles]
 
 data FileList = FileList
-    { fUserName :: UserName
-    , fUserFiles :: [FileName]
+    { fUserFiles :: [FileName]
     , fGroupFiles :: [GroupFileList]
     }
 
 instance FromJSON FileList where
     parseJSON (Object v) = FileList <$>
-        (v .: "user") <*> (v .: "user_files") <*> (v .: "group_files")
+        (v .: "user_files") <*> (v .: "group_files")
     parseJSON _ = mempty
 
 instance ToJSON FileList where
-    toJSON (FileList uName uFiles gFiles) =
-        object [ "user" .= uName
-               , "user_files" .= uFiles
+    toJSON (FileList uFiles gFiles) =
+        object [ "user_files" .= uFiles
                , "group_files" .= gFiles
                ]
 

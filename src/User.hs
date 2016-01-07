@@ -158,7 +158,7 @@ listProvider req = do
 -- | list all files from a user and a list of groups
 toFileList :: ListData -> ApiResponse FileList
 toFileList (Just user, groups) = success $
-    FileList (iUserName user) (map fileName $ iUserFiles user)
+    FileList (map fileName $ iUserFiles user)
         (map toGroupFileList groups)
 toFileList (Nothing, _) = failure AuthError
 -- }}}
@@ -179,7 +179,7 @@ processingProvider (ProcessingRequest user opts fList tz time) = do
 
 -- | process files
 processFiles :: ProcessingData -> ApiResponse String
-processFiles (Just user, groups, (FileList _ uFiles gFiles), opts, time, tz) = 
+processFiles (Just user, groups, (FileList uFiles gFiles), opts, time, tz) = 
     processor <$> files
     where opts' = convertOptions opts
           files = (unpack . mconcat . mconcat) <$>
@@ -202,7 +202,7 @@ matchFiles files fNames = foldr go (success []) fNames
 -- | get all matching groups from a list and return an error in case of
 -- missing groups
 matchGroups :: [InternalGroup]
-           -> [GroupFileList] -> ApiResponse [([File], [FileName])]
+            -> [GroupFileList] -> ApiResponse [([File], [FileName])]
 matchGroups groups gLists = foldr go (success []) gLists
     where groups' = map ((,) <$> iGroupName <*> id) groups
           go (GroupFileList g fs) gs = case lookup g groups' of

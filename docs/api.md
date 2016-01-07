@@ -3,7 +3,7 @@ This document describes the available features and API calls of the server
 application provided by `morgue-server`. It's main purpose is to allow a
 distributed usage of the functionality provided by `morgue`.
 
-All API calls are exposed through a RESTful interface as described below.
+All API calls are exposed through a REST-ish interface as described below.
 
 ## Basic concept
 Most API calls are verified using a so-called API key which can be assumed to
@@ -38,22 +38,33 @@ the docs of the corresponding API call tell you.
 
 * `Group` - represents a group of users that share access to the group's files:
   * `name`: `String` - the group's name
+  * `members`: `[String]` - the members' names
 
 * `File` - represents a file:
   * `name`: `String` - the filename
   * `content`: `String` - the file's content
 
+* `FileList` - represents a set of files belonging to a user,
+  as well as a set of groups.
+  * `user_files`: `[String]` - the names of files owned by the calling user
+  * `group_files`: `[GroupFileList]` - a list of structures representing
+    groups and the corresponding files.
+
+* `GroupFileList` - represents a set of files belonging to a group
+  * `group`: `String` - the group's name
+  * `files`: `[String]` - the names of files owned by that group
+
 * `Options` (Agenda) - settings for agenda generation:
-  * `mode`: `String` - the agenda mode. One of "Timed", "Todo", "Both"
+  * `mode`: `String` - the agenda mode. One of `Timed`, `Todo`, `Both`
   * `double_spaces`: `Bool` - Double the amount of leading whitespace? Makes
     sense in case you use 2-space indent with markdown.
   * `tags`: `[String]` (optional) - tags to include
   * `skip_tags`: `[String]` (optional) - tags to skip
   * `num_days`: `Integer` - number of days for a timed agenda
-  * `format`: `String` - the output format. One of "ANSI", "Plaintext", "Pango"
+  * `format`: `String` - the output format. One of `ANSI`, `Plaintext`, `Pango`
 * `Options` (Outline) - settings for outline generation
   (the API decides based on context what kind of data you want):
-  * `format`: `String` - the output format. One of "ANSI", "Plaintext", "Pango"
+  * `format`: `String` - the output format. One of `ANSI`, `Plaintext`, `Pango`
 
 ## Example
 Every API call that accesses files, creates or modifies groups etc., needs a
@@ -103,9 +114,50 @@ session.
 * Errors
   * `AuthError` if the credentials aren't valid
 
+#### Upload a file
+* URI: `user/push`
+* Parameters
+  * `user`: `User`
+  * `file`: `File` 
+* Return value: `String` - the filename
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `EntityAlreadyExists` if the file exists already
+
+#### Get a file's content
+* URI: `user/pull`
+* Parameters
+  * `user`: `User`
+  * `filename`: `String`
+* Return value: `File`
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `NoSuchEntity` if the given file does not exist
+
+#### List available files
+List all files that the user can access, both his own and of groups he is a
+member of.
+* URI: `user/list`
+* Parameters: `User`
+* Return value:
+  * `files`: `FileList` - all available files
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+
+#### Generate an Agenda or Outline by passing settings
+* URI: `user/agenda`
+* Parameters
+  * `user`: `User`
+  * `options`: `Options` - options to generate an agenda or outline
+  * `files`: `FileList` - files to generate the agenda/outline for
+* Return value: `String` - the agenda
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `NoAccess` if the user is not allowed to access the given file(s)
+
 ### Group-related
 Groups of users are intended to share files amongst their members. That way,
-notes can be edited, read, and processed in a colloborative fashion.
+notes can be edited, read, and processed in a distributed manner.
 
 #### Creating a new Group
 * URI: `group/new`
@@ -128,7 +180,9 @@ Example:
 would result in the following response if no errors occur.
 ```JSON
 { "error": null
-, "result": { "name": "testGroup" }
+, "result": { "name": "testGroup"
+            , "members": []
+            }
 }
 ```
 
@@ -136,8 +190,8 @@ would result in the following response if no errors occur.
 * URI: `group/add`
 * Parameters
   * `user`: `User`
-  * `group`: `Group` - the group to be added to
-  * `username`: `String` - the user to be added
+  * `group`: `String` - the group's name to be added to
+  * `username`: `String` - the user's name to be added
 * Return value: `Group`
 * Errors
   * `AuthError` if the username / API key pair isn't valid
@@ -145,69 +199,26 @@ would result in the following response if no errors occur.
   * `NoSuchEntity` if the user to be added isn't present
   * `ÈntityAlreadyExists` if the user to be added is already a member
 
-#### List all users in a Group
-* URI: `group/members`
-* Parameters:
-  * `user`: `User`
-  * `group`: `Group`
-* Return value: `[String]`
-* Errors
-  * `AuthError` if the username / API key pair isn't valid
-  * `NoSuchEntity` if the given group doesn't exist
-
-### File-related
-To distinguish between files in a user's own store and available to
-him through group membership, a path-like syntax is used, which is shared
-across all file-related queries once the system has a notion of them. Thus,
-all API calls except `file/push` use a path-like syntax. For instance, a file
-named `test`, owned by user `testUser` is represented as `u/testUser/test`, and
-a file owned by group `testGroup` with the same name is represented as
-`g/testGroup/test`.
-
-#### List available files
-List all files that the user can access, both his own and of groups he is a
-member of.
-* URI: `file/browse`
-* Parameters: `User`
-* Return value:
-  * `name`: `String` - the user's name
-  * `files`: `[File]` - all available files
-* Errors
-  * `AuthError` if the username / API key pair isn't valid
-
-#### Get a file's content
-* URI: `file/pull`
+#### Upload a file
+* URI: `group/push`
 * Parameters
   * `user`: `User`
+  * `group`: `String`
+  * `file`: `File` 
+* Return value: `String` - the filename
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `EntityAlreadyExists` if the file exists already
+  * `NoAccess` if the user isn't member of the group
+
+#### Get a file's content
+* URI: `group/pull`
+* Parameters
+  * `user`: `User`
+  * `group`: `String`
   * `filename`: `String`
 * Return value: `File`
 * Errors
   * `AuthError` if the username / API key pair isn't valid
-  * `NoAccess` if the user is not allowed to access the given file
-
-#### Upload a file
-Files are uploaded to the private store by default, unless the `group`
-parameter is given. In that case, it is uploaded to the group's store.
-* URI: `file/push`
-* Parameters
-  * `user`: `User`
-  * `group`: `Group` (optional) - the group to upload to
-  * `file`: `File` 
-* Return value: `String` - the filepath
-* Errors
-  * `AuthError` if the username / API key pair isn't valid
-  * `EntityAlreadyExists` if the file exists already
-  * `NoAccess` if a group is given and the user isn't a member
-
-### Agenda-related
-
-#### Generate an Agenda or Outline by passing settings
-* URI: `morgue`
-* Parameters
-  * `user`: `User`
-  * `options`: `Options` - options to generate an agenda or outline
-  * `files`: `[String]` - files to generate the agenda/outline for
-* Return value: `String` - the agenda
-* Errors
-  * `AuthError` if the username / API key pair isn't valid
-  * `NoAccess` if the user is not allowed to access the given file(s)
+  * `NoSuchEntity` if the given file does not exist
+  * `NoAccess` if the user isn't member of the group
