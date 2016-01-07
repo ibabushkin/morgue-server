@@ -52,7 +52,7 @@ makeGroup :: GroupNewData -> ApiResponse InternalGroup
 makeGroup (Just user, gName, Nothing) = success $
     InternalGroup gName [iUserName user] []
 makeGroup (Nothing, _, _) = failure AuthError
-makeGroup (_, _, Just _) = failure EntityAlreadyExists
+makeGroup (_, _, Just _) = failure GroupExists
 
 -- }}}
 
@@ -71,11 +71,11 @@ groupAddProvider (GroupAddRequest user gName uName) = do
 addUserToGroup :: GroupAddData -> ApiResponse InternalGroup
 addUserToGroup (Just user, Just group, Just (InternalUser uName _ _ _))
     | iUserName user `notElem` iUsers group = failure NoAccess
-    | uName `elem` iUsers group = failure EntityAlreadyExists
+    | uName `elem` iUsers group = failure MemberExists
     | otherwise = success $ group { iUsers = uName : iUsers group }
 addUserToGroup (Nothing, _, _) = failure AuthError
-addUserToGroup (_, Nothing, _) = failure NoSuchEntity
-addUserToGroup (_, _, Nothing) = failure NoSuchEntity
+addUserToGroup (_, Nothing, _) = failure NoSuchGroup
+addUserToGroup (_, _, Nothing) = failure NoSuchUser
 
 -- }}}
 
@@ -94,10 +94,10 @@ pushGProvider (PushGRequest user gName file) = do
 addFileToGroup :: PushGData -> ApiResponse InternalGroup
 addFileToGroup (Just user, Just group, file)
     | iUserName user `notElem` iUsers group = failure NoAccess
-    | file `elem` iGroupFiles group = failure EntityAlreadyExists
+    | file `elem` iGroupFiles group = failure FileExists
     | otherwise = success $ group { iGroupFiles = file : iGroupFiles group }
 addFileToGroup (Nothing, _, _) = failure AuthError
-addFileToGroup (_, Nothing, _) = failure NoSuchEntity
+addFileToGroup (_, Nothing, _) = failure NoSuchGroup
 
 -- }}}
 
@@ -118,8 +118,8 @@ getFileFromGroup (Just user, Just group, fName)
     | iUserName user `notElem` iUsers group = failure NoAccess
     | otherwise = case filter ((==fName) . fileName) $ iGroupFiles group of
                     [file] -> success file
-                    [] -> failure NoSuchEntity
+                    [] -> failure $ NoSuchFile fName
 getFileFromGroup (Nothing, _, _) = failure AuthError
-getFileFromGroup (_, Nothing, _) = failure NoSuchEntity
+getFileFromGroup (_, Nothing, _) = failure NoSuchGroup
 
 -- }}}

@@ -80,7 +80,7 @@ makeUser (SignUpRequest creds apiKey salt, Nothing) = success $
     InternalUser (uName creds) apiKey encPass []
     where encPass = B.fromStrict . getEncryptedPass $
               encryptPass' salt (Pass . B.toStrict $ uPass creds)
-makeUser (_, Just _) = failure EntityAlreadyExists
+makeUser (_, Just _) = failure UserExists
 -- }}}
 
 -- {{{ logging in
@@ -116,7 +116,7 @@ pushUProvider (PushURequest user file) = do
 -- | add a file to a user's files
 addFileToUser :: PushUData -> ApiResponse InternalUser
 addFileToUser (Just user, file)
-    | file `elem` (iUserFiles user) = failure EntityAlreadyExists
+    | file `elem` (iUserFiles user) = failure FileExists
     | otherwise = success $ user { iUserFiles = file : iUserFiles user }
 addFileToUser (Nothing, _) = failure AuthError
 
@@ -139,7 +139,7 @@ getFileFromUser :: PullUData -> ApiResponse File
 getFileFromUser (Just user, fName) =
     case filter ((==fName) . fileName) $ iUserFiles user of
       [file] -> success file
-      [] -> failure NoSuchEntity
+      [] -> failure $ NoSuchFile fName
 getFileFromUser (Nothing, _) = failure AuthError
 
 -- }}}
@@ -197,7 +197,7 @@ matchFiles files fNames = foldr go (success []) fNames
     where files' = map ((,) <$> fileName <*> id) files
           go f fs = case lookup f files' of
                       Just file -> (fileContents file:) <$> fs
-                      Nothing -> failure NoSuchEntity
+                      Nothing -> failure $ NoSuchFile f
 
 -- | get all matching groups from a list and return an error in case of
 -- missing groups

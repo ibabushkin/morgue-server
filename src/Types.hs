@@ -353,12 +353,17 @@ type SignInData = (Password, Maybe InternalUser, ApiKey)
 -- {{{
 data ApiError = BadRequest
               | AuthError
-              | IllegalName
               | NoAccess
-              | NoSuchEntity
-              | EntityAlreadyExists
+              | NoSuchFile FileName
+              | FileExists
+              | NoSuchUser
+              | UserExists
+              | MemberExists
+              | GroupExists
+              | NoSuchGroup
     deriving (Show, Eq)
 
+-- TODO: fix
 instance ToJSON ApiError where
     toJSON = String . T.pack . show
 
@@ -384,55 +389,38 @@ data Morgue = Morgue { allUsers :: IxSet InternalUser
 $(deriveSafeCopy 0 'base ''O.SimpleOptions)
 $(deriveSafeCopy 0 'base ''OutputFormat)
 $(deriveSafeCopy 0 'base ''AgendaMode)
-
 $(deriveSafeCopy 0 'base ''Salt)
 
 $(deriveSafeCopy 0 'base ''Morgue)
 
 $(deriveSafeCopy 0 'base ''UserName)
-
 $(deriveSafeCopy 0 'base ''GroupName)
-
 $(deriveSafeCopy 0 'base ''FileName)
-
-$(deriveSafeCopy 0 'base ''InternalUser)
-
-$(deriveSafeCopy 0 'base ''User)
-
-$(deriveSafeCopy 0 'base ''InternalGroup)
-
-$(deriveSafeCopy 0 'base ''Group)
-
-$(deriveSafeCopy 0 'base ''File)
-
-$(deriveSafeCopy 0 'base ''GroupFileList)
-
-$(deriveSafeCopy 0 'base ''FileList)
 
 $(deriveSafeCopy 0 'base ''Credentials)
 
+$(deriveSafeCopy 0 'base ''InternalUser)
+$(deriveSafeCopy 0 'base ''User)
+
+$(deriveSafeCopy 0 'base ''InternalGroup)
+$(deriveSafeCopy 0 'base ''Group)
+
+$(deriveSafeCopy 0 'base ''File)
+$(deriveSafeCopy 0 'base ''GroupFileList)
+$(deriveSafeCopy 0 'base ''FileList)
+
 $(deriveSafeCopy 0 'base ''SignUpRequest)
-
 $(deriveSafeCopy 0 'base ''SignInRequest)
-
 $(deriveSafeCopy 0 'base ''ListRequest)
-
 $(deriveSafeCopy 0 'base ''PushURequest)
-
 $(deriveSafeCopy 0 'base ''PushGRequest)
-
 $(deriveSafeCopy 0 'base ''PullURequest)
-
 $(deriveSafeCopy 0 'base ''PullGRequest)
-
 $(deriveSafeCopy 0 'base ''GroupNewRequest)
-
 $(deriveSafeCopy 0 'base ''GroupAddRequest)
-
 $(deriveSafeCopy 0 'base ''ProcessingRequest)
 
 $(deriveSafeCopy 0 'base ''ApiError)
-
 $(deriveSafeCopy 0 'base ''ApiResponse)
 -- }}}
 
