@@ -363,9 +363,10 @@ data ApiError = BadRequest
               | NoSuchGroup
     deriving (Show, Eq)
 
--- TODO: fix
 instance ToJSON ApiError where
-    toJSON = String . T.pack . show
+    toJSON (NoSuchFile (FileName fName)) =
+        String $ T.append "NoSuchFile: " fName
+    toJSON a = String . T.pack $ show a
 
 -- | a response as returned by the API
 -- {{{

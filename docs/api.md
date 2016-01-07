@@ -83,7 +83,7 @@ parameters and return values.
   * `Credentials`
 * Return value `User`
 * Errors
-  * `EntityAlreadyExists` if the user already exists
+  * `UserExists` if the user already exists
 
 Example:
 ```JSON
@@ -122,7 +122,7 @@ session.
 * Return value: `String` - the filename
 * Errors
   * `AuthError` if the username / API key pair isn't valid
-  * `EntityAlreadyExists` if the file exists already
+  * `FileExists` if the file exists already
 
 #### Get a file's content
 * URI: `user/pull`
@@ -132,7 +132,7 @@ session.
 * Return value: `File`
 * Errors
   * `AuthError` if the username / API key pair isn't valid
-  * `NoSuchEntity` if the given file does not exist
+  * `NoSuchFile` if the given file does not exist
 
 #### List available files
 List all files that the user can access, both his own and of groups he is a
@@ -167,7 +167,7 @@ notes can be edited, read, and processed in a distributed manner.
 * Return value: `Group`
 * Errors
   * `AuthError` if the username / API key pair isn't valid
-  * `EntityAlreadyExists` if a group with that name is existing already
+  * `GroupExists` if a group with that name is existing already
 
 Example:
 ```JSON
@@ -196,8 +196,8 @@ would result in the following response if no errors occur.
 * Errors
   * `AuthError` if the username / API key pair isn't valid
   * `NoAccess` if the calling user isn't member of the group
-  * `NoSuchEntity` if the user to be added isn't present
-  * `ÈntityAlreadyExists` if the user to be added is already a member
+  * `NoSuchUser` if the user to be added isn't present
+  * `MemberExists` if the user to be added is already a member
 
 #### Upload a file
 * URI: `group/push`
@@ -208,7 +208,7 @@ would result in the following response if no errors occur.
 * Return value: `String` - the filename
 * Errors
   * `AuthError` if the username / API key pair isn't valid
-  * `EntityAlreadyExists` if the file exists already
+  * `FileExists` if the file exists already
   * `NoAccess` if the user isn't member of the group
 
 #### Get a file's content
@@ -220,5 +220,5 @@ would result in the following response if no errors occur.
 * Return value: `File`
 * Errors
   * `AuthError` if the username / API key pair isn't valid
-  * `NoSuchEntity` if the given file does not exist
+  * `NoSuchFile` if the given file does not exist
   * `NoAccess` if the user isn't member of the group
