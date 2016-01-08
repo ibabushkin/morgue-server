@@ -9,23 +9,17 @@
 module Types
     ( module Types
     , module Export
-    , module O
     ) where
 
 import Control.Applicative
 
 import Crypto.Scrypt(Salt)
 
-import Data.Acid (Update)
 import Data.Aeson as Export
-import qualified Data.ByteString.Lazy as B
 import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.Char8 (pack, unpack)
+import Data.ByteString.Lazy.Char8 (pack)
 import Data.Data (Data, Typeable)
-import Data.IxSet ( Indexable(..), IxSet(..), (@=)
-                  , Proxy(..), getOne, ixFun, ixSet)
-import qualified Data.IxSet as IxSet
-import Data.List (intercalate)
+import Data.IxSet (Indexable(..), IxSet, ixFun, ixSet)
 import Data.Morgue.AgendaGenerator as Export (AgendaMode(..))
 import Data.Morgue.Format as Export (OutputFormat(..))
 import qualified Data.Morgue.Options as O
@@ -33,8 +27,6 @@ import Data.SafeCopy (base, deriveSafeCopy)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Time
-
-import Text.Read (readMaybe)
 
 -- = newtypes for names
 -- | a User's name
@@ -88,8 +80,7 @@ instance FromJSON O.SimpleOptions where
         (v .: "num_days") <*>
         (v .: "format")) <|> (O.SOutlineOptions <$>
         (v .: "format"))
-        where helper (Just a) = return a
-              helper Nothing = fail ""
+    parseJSON _ = mempty
 
 -- = User definition
 -- | a user of our system
@@ -165,6 +156,7 @@ data GroupFileList = GroupFileList { gFileListName :: GroupName
 instance FromJSON GroupFileList where
     parseJSON (Object v) = GroupFileList <$>
         (v .: "group") <*> (v .: "files")
+    parseJSON _ = mempty
 
 instance ToJSON GroupFileList where
     toJSON (GroupFileList gName gFiles) =
@@ -300,11 +292,12 @@ instance FromJSON ProcessingRequest' where
         (v .: "user" >>= parseJSON) <*>
         (v .: "options" >>= parseJSON) <*>
         v .: "files"
+    parseJSON _ = mempty
 
 -- == Authentication
 -- | A username and a password
-data Credentials = Credentials { uName :: UserName
-                               , uPass :: Password
+data Credentials = Credentials { cName :: UserName
+                               , cPass :: Password
                                }
 
 instance FromJSON Credentials where

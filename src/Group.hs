@@ -40,10 +40,10 @@ toGroupFileList = GroupFileList <$> iGroupName <*>
 -- = Creating new groups
 -- | provide data needed for group creation
 groupNewProvider :: GroupNewRequest -> Query Morgue GroupNewData
-groupNewProvider (GroupNewRequest user groupName) = do
+groupNewProvider (GroupNewRequest user gName) = do
     morgue <- ask
     return ( getOne $ allUsers morgue @= user
-           , groupName
+           , gName
            , getOne $ allGroups morgue @= groupName
            )
 
@@ -109,6 +109,6 @@ getFileFromGroup (Just user, Just group, fName)
     | iUserName user `notElem` iUsers group = failure NoAccess
     | otherwise = case filter ((==fName) . fileName) $ iGroupFiles group of
                     [file] -> success file
-                    [] -> failure $ NoSuchFile fName
+                    _ -> failure $ NoSuchFile fName
 getFileFromGroup (Nothing, _, _) = failure AuthError
 getFileFromGroup (_, Nothing, _) = failure NoSuchGroup

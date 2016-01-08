@@ -57,7 +57,7 @@ groupApi acid = msum
 -- from the generic functions below
 dirGen :: (ToJSON a, FromJSON r)
        => String -> (r -> IO (ApiResponse a)) -> ServerPart Response
-dirGen s resp = dir s (apiGenIO resp)
+dirGen s respAction = dir s (apiGenIO respAction)
 
 -- | an API call used for regular data exchange via JSON
 apiGen :: (ToJSON r, FromJSON i)

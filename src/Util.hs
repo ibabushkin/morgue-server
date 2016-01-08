@@ -1,11 +1,8 @@
 module Util where
 
 import Data.Acid (Update)
-import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty
-import qualified Data.ByteString.Lazy as B
 import Data.IxSet (empty)
-import qualified Data.Text as T
 
 import Happstack.Server (toResponse, Response)
 

@@ -73,24 +73,24 @@ toUser = User <$> iUserName <*> iApiKey
 signUpProvider :: SignUpRequest -> Query Morgue SignUpData
 signUpProvider req = do
     morgue <- ask
-    return (req, getOne $ allUsers morgue @= uName (suRqCreds req))
+    return (req, getOne $ allUsers morgue @= cName (suRqCreds req))
 
 -- | process data from a sign up request
 makeUser :: SignUpData -> ApiResponse InternalUser
-makeUser (SignUpRequest creds apiKey salt, Nothing) = success $
-    InternalUser (uName creds) apiKey encPass []
+makeUser (SignUpRequest creds key salt, Nothing) = success $
+    InternalUser (cName creds) key encPass []
     where encPass = B.fromStrict . getEncryptedPass $
-              encryptPass' salt (Pass . B.toStrict $ uPass creds)
+              encryptPass' salt (Pass . B.toStrict $ cPass creds)
 makeUser (_, Just _) = failure UserExists
 
 -- = Logging in
 -- | provide data from a login request 
 signInProvider :: SignInRequest -> Query Morgue SignInData
-signInProvider (SignInRequest creds apiKey) = do
+signInProvider (SignInRequest creds key) = do
     morgue <- ask
-    return ( uPass creds
-           , getOne $ allUsers morgue @= uName creds
-           , apiKey
+    return ( cPass creds
+           , getOne $ allUsers morgue @= cName creds
+           , key
            )
 
 -- | process user data in order to login
@@ -124,16 +124,16 @@ getLastFile = fileName . head . iUserFiles
 -- = Pulling a file
 -- | provide data from a user-pull request
 pullUProvider :: PullURequest -> Query Morgue PullUData
-pullUProvider (PullURequest user fileName) = do
+pullUProvider (PullURequest user fName) = do
     morgue <- ask
-    return (getOne $ allUsers morgue @= user, fileName)
+    return (getOne $ allUsers morgue @= user, fName)
 
 -- | get a file from a user, looking it up by name
 getFileFromUser :: PullUData -> ApiResponse File
 getFileFromUser (Just user, fName) =
     case filter ((==fName) . fileName) $ iUserFiles user of
       [file] -> success file
-      [] -> failure $ NoSuchFile fName
+      _ -> failure $ NoSuchFile fName
 getFileFromUser (Nothing, _) = failure AuthError
 
 -- = Listing available files
