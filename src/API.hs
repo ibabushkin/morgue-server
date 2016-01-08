@@ -16,7 +16,7 @@ import Types
 import User
 import Util
 
--- {{{ synonyms for commonly used function types
+-- = Synonyms for commonly used function types
 
 -- | gather data from our datastore
 type Provider r i = r -> Query Morgue i
@@ -26,8 +26,8 @@ type Processor i r = i -> ApiResponse r
 type StorageBackend r' = ApiResponse r' -> Update Morgue (ApiResponse r')
 -- | transform the result of an API call to something suited for the caller's eyes
 type Transformer r' r = r' -> r
--- }}}
 
+-- = Combinator(s) for API building
 -- | process an API request by combining functions of the appropriate type
 run :: Provider req int
     -> Processor int res'
@@ -37,8 +37,7 @@ run :: Provider req int
 run provide process store trans req = fmap (fmap trans) $
     liftQuery (process <$> provide req) >>= store
 
--- {{{ boilerplate functions used for API calls, representing complete request pipelines
-
+-- = Boilerplate functions representing complete request pipelines
 -- | signing up
 signUp :: SignUpRequest -> Update Morgue (ApiResponse User)
 signUp = run signUpProvider makeUser (liftStore storeUser) toUser
@@ -47,31 +46,40 @@ signUp = run signUpProvider makeUser (liftStore storeUser) toUser
 signIn :: SignInRequest -> Update Morgue (ApiResponse User)
 signIn = run signInProvider loginUser (liftStore updateUser) toUser
 
+-- | pushing files to a user's datastore
 pushU :: PushURequest -> Update Morgue (ApiResponse FileName)
 pushU = run pushUProvider addFileToUser (liftStore updateUser) getLastFile
 
+-- | pulling files from a user's datastore
 pullU :: PullURequest -> Update Morgue (ApiResponse File)
 pullU = run pullUProvider getFileFromUser return id
 
+-- | creating a new group
 groupNew :: GroupNewRequest -> Update Morgue (ApiResponse Group)
 groupNew = run groupNewProvider makeGroup (liftStore storeGroup) toGroup
 
+-- | adding a user to an existing group
 groupAdd :: GroupAddRequest -> Update Morgue (ApiResponse Group)
 groupAdd = run groupAddProvider
     addUserToGroup (liftStore updateGroup) toGroup
 
+-- | pushing files to a group's datastore
 pushG :: PushGRequest -> Update Morgue (ApiResponse Group)
 pushG = run pushGProvider addFileToGroup (liftStore updateGroup) toGroup
 
+-- | pulling files from a group's datastore
 pullG :: PullGRequest -> Update Morgue (ApiResponse File)
 pullG = run pullGProvider getFileFromGroup return id
 
+-- | listing files available to a user
 list :: ListRequest -> Update Morgue (ApiResponse FileList)
 list = run listProvider toFileList  return id
 
+-- | processing a set of files to an agenda or outline
 processing :: ProcessingRequest -> Update Morgue (ApiResponse String)
 processing = run processingProvider processFiles return id
 
+-- = API interface
 -- | derive IsAcidic instances
 $(makeAcidic ''Morgue
   [ 'signUp
@@ -86,6 +94,7 @@ $(makeAcidic ''Morgue
   , 'processing
   ])
 
+-- | combinator to wrap request pipelines into IO actions
 actionIO :: ( UpdateEvent event
             , EventState event ~ Morgue
             , EventResult event ~ ApiResponse b)

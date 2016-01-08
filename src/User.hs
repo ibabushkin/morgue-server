@@ -21,8 +21,7 @@ import Group (toGroupFileList)
 import Types
 import Util
 
--- {{{ utility functions
-
+-- = Utility functions
 -- | generate a user's API key
 genApiKey :: IO ApiKey
 genApiKey = pack . showDigest <$> (hmacSha256 <$>
@@ -35,10 +34,14 @@ toSignUpRequest :: SignUpRequest' -> IO SignUpRequest
 toSignUpRequest req =
     SignUpRequest (suRqCreds' req) <$> genApiKey <*> newSalt
 
+-- | transform a SignInRequest as passed to our application to a version
+-- suited for pure computation
 toSignInRequest :: SignInRequest' -> IO SignInRequest
 toSignInRequest req =
     SignInRequest (siRqCreds' req) <$> genApiKey
 
+-- | transform a ProcessingRequest as passed to our application to a version
+-- suited for pure computation
 toProcessingRequest :: ProcessingRequest' -> IO ProcessingRequest
 toProcessingRequest req =
     ProcessingRequest (prRqUser' req) (prRqOptions' req) (prRqFiles' req) <$>
@@ -64,10 +67,8 @@ updateUser = packUser True
 -- | conversion for public access
 toUser :: InternalUser -> User
 toUser = User <$> iUserName <*> iApiKey
--- }}}
 
--- {{{ signing up
-
+-- = Signing up
 -- | provide data needed for signup. We don't do any IO here
 signUpProvider :: SignUpRequest -> Query Morgue SignUpData
 signUpProvider req = do
@@ -81,10 +82,8 @@ makeUser (SignUpRequest creds apiKey salt, Nothing) = success $
     where encPass = B.fromStrict . getEncryptedPass $
               encryptPass' salt (Pass . B.toStrict $ uPass creds)
 makeUser (_, Just _) = failure UserExists
--- }}}
 
--- {{{ logging in
-
+-- = Logging in
 -- | provide data from a login request 
 signInProvider :: SignInRequest -> Query Morgue SignInData
 signInProvider (SignInRequest creds apiKey) = do
@@ -103,10 +102,8 @@ loginUser (encPass, Just user@(InternalUser _ _ pass _), newApiKey)
               (Pass $ B.toStrict pass)
               (EncryptedPass $ B.toStrict encPass)
 loginUser (_, Nothing, _) = failure AuthError
--- }}}
 
--- {{{ uploading a file
-
+-- = Uploading a file
 -- | provide data from a user-push request
 pushUProvider :: PushURequest -> Query Morgue PushUData
 pushUProvider (PushURequest user file) = do
@@ -116,7 +113,7 @@ pushUProvider (PushURequest user file) = do
 -- | add a file to a user's files
 addFileToUser :: PushUData -> ApiResponse InternalUser
 addFileToUser (Just user, file)
-    | file `elem` (iUserFiles user) = failure FileExists
+    | file `elem` iUserFiles user = failure FileExists
     | otherwise = success $ user { iUserFiles = file : iUserFiles user }
 addFileToUser (Nothing, _) = failure AuthError
 
@@ -124,10 +121,7 @@ addFileToUser (Nothing, _) = failure AuthError
 getLastFile :: InternalUser -> FileName
 getLastFile = fileName . head . iUserFiles
 
--- }}}
-
--- {{{ downloading a file
-
+-- = Pulling a file
 -- | provide data from a user-pull request
 pullUProvider :: PullURequest -> Query Morgue PullUData
 pullUProvider (PullURequest user fileName) = do
@@ -142,16 +136,13 @@ getFileFromUser (Just user, fName) =
       [] -> failure $ NoSuchFile fName
 getFileFromUser (Nothing, _) = failure AuthError
 
--- }}}
-
--- {{{ listing available files
-
+-- = Listing available files
 -- | provide data from a user-list request
 listProvider :: ListRequest -> Query Morgue ListData
 listProvider req = do
     morgue <- ask
     return ( getOne $ allUsers morgue @= user
-           , toList $ allGroups morgue @= (userName user)
+           , toList $ allGroups morgue @= userName user
            )
     where user = lRqUser req
 
@@ -161,11 +152,9 @@ toFileList (Just user, groups) = success $
     FileList (map fileName $ iUserFiles user)
         (map toGroupFileList groups)
 toFileList (Nothing, _) = failure AuthError
--- }}}
 
--- {{{ processing files to an agenda
-
--- | procide data from a processing request
+-- = processing files to an agenda
+-- | provide data from a processing request
 processingProvider :: ProcessingRequest -> Query Morgue ProcessingData
 processingProvider (ProcessingRequest user opts fList tz time) = do
     morgue <- ask
@@ -179,7 +168,7 @@ processingProvider (ProcessingRequest user opts fList tz time) = do
 
 -- | process files
 processFiles :: ProcessingData -> ApiResponse String
-processFiles (Just user, groups, (FileList uFiles gFiles), opts, time, tz) = 
+processFiles (Just user, groups, FileList uFiles gFiles, opts, time, tz) = 
     processor <$> files
     where opts' = convertOptions opts
           files = (unpack . mconcat . mconcat) <$>
@@ -193,7 +182,7 @@ processFiles (Nothing, _, _, _, _, _) = failure AuthError
 -- | get all matching files from a list and return an error in case of
 -- missing files
 matchFiles :: [File] -> [FileName] -> ApiResponse [FileContent]
-matchFiles files fNames = foldr go (success []) fNames
+matchFiles files = foldr go (success [])
     where files' = map ((,) <$> fileName <*> id) files
           go f fs = case lookup f files' of
                       Just file -> (fileContents file:) <$> fs
@@ -203,11 +192,9 @@ matchFiles files fNames = foldr go (success []) fNames
 -- missing groups
 matchGroups :: [InternalGroup]
             -> [GroupFileList] -> ApiResponse [([File], [FileName])]
-matchGroups groups gLists = foldr go (success []) gLists
+matchGroups groups = foldr go (success [])
     where groups' = map ((,) <$> iGroupName <*> id) groups
           go (GroupFileList g fs) gs = case lookup g groups' of
                                          Just gr ->
                                              ((iGroupFiles gr, fs):) <$> gs
                                          Nothing -> failure NoAccess
-
--- }}}

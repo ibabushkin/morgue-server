@@ -16,14 +16,14 @@ import Types
 import User (toSignUpRequest, toSignInRequest, toProcessingRequest)
 import Util
 
--- | our main application
+-- | main application
 main :: IO ()
 main =
     bracket (openLocalState initialMorgueState)
             createCheckpointAndClose
             (simpleHTTP nullConf . route)
 
--- | our main application
+-- | main application's route
 route :: AcidState Morgue -> ServerPart Response
 route acid = msum
     [ dir "user" $ userApi acid
@@ -31,7 +31,7 @@ route acid = msum
     , e404
     ]
 
--- | our user-related API functions
+-- | user-related API functions
 userApi :: AcidState Morgue -> ServerPart Response
 userApi acid = msum
     [ dirGen "new"  $ toSignUpRequest >=> actionIO acid SignUp
@@ -43,6 +43,7 @@ userApi acid = msum
     , e404
     ]
 
+-- | group-related API functions
 groupApi :: AcidState Morgue -> ServerPart Response
 groupApi acid = msum
    [ dirGen "new"  $ actionIO acid GroupNew

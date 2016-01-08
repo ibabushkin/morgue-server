@@ -11,7 +11,7 @@ import Happstack.Server (toResponse, Response)
 
 import Types
 
--- {{{ API helpers
+-- = API helpers
 -- | successful API response
 success :: a -> ApiResponse a
 success = ApiResponse . Right
@@ -23,8 +23,8 @@ failure = ApiResponse . Left
 -- | process anything that can be encoded as JSON to a Response
 respond :: ToJSON r => r -> Response
 respond = toResponse . encodePretty' (defConfig { confCompare = compare })
--- }}}
 
+-- | lift a storeage action \"onto\" the 'ApiResponse' monad
 liftStore :: (a -> Update Morgue b)
           -> ApiResponse a -> Update Morgue (ApiResponse b)
 liftStore f a = sequence $ f <$> a

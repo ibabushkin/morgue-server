@@ -36,32 +36,29 @@ import Data.Time
 
 import Text.Read (readMaybe)
 
--- {{{ type synonyms for self-documenting types
+-- = newtypes for names
+-- | a User's name
 newtype UserName = UserName { getUName :: Text }
     deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
+-- | a Group's name
 newtype GroupName = GroupName { getGName :: Text }
     deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
--- | a File's name, by path components
+-- | a File's name
 newtype FileName = FileName { getFName :: Text }
     deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
 type FileContent = Text
 type ApiKey = Text
 type Password = ByteString
--- }}}
 
--- {{{ To/FromJSON instances for elementar types
+-- = To/FromJSON instances for elementar types and things exported by morgue
 instance FromJSON ByteString where
     parseJSON (String s) = pure . pack $ T.unpack s
     parseJSON _ = mempty
 
-instance ToJSON ByteString where
-    toJSON = String . T.pack . unpack
--- }}}
-
--- {{{ FromJSON instances for morgue's datatypes
+-- | get setting data from a JSON string
 instance FromJSON AgendaMode where
     parseJSON (String s) =
         case s of
@@ -71,6 +68,7 @@ instance FromJSON AgendaMode where
           _ -> mempty
     parseJSON _ = mempty
 
+-- | get setting data from a JSON string
 instance FromJSON OutputFormat where
     parseJSON (String s) =
         case s of
@@ -80,6 +78,7 @@ instance FromJSON OutputFormat where
           _ -> mempty
     parseJSON _ = mempty
 
+-- | parse morgue's 'O.SimpleOptions' type
 instance FromJSON O.SimpleOptions where
     parseJSON (Object v) = (O.SAgendaOptions <$>
         (v .: "mode") <*>
@@ -91,10 +90,9 @@ instance FromJSON O.SimpleOptions where
         (v .: "format"))
         where helper (Just a) = return a
               helper Nothing = fail ""
--- }}}
 
+-- = User definition
 -- | a user of our system
--- {{{
 data User = User { userName :: UserName -- ^ name of the user
                  , apiKey :: ApiKey -- ^ user's API key
                  } deriving (Show, Read, Eq, Ord)
@@ -107,20 +105,18 @@ instance ToJSON User where
 instance FromJSON User where
     parseJSON (Object v) = User <$> v .: "name" <*> v .: "api_key"
     parseJSON _ = mempty
--- }}}
 
+-- == Internal user representation
 -- | internal representation of a user
--- {{{
 data InternalUser = InternalUser
     { iUserName :: UserName
     , iApiKey :: ApiKey
     , iPassword :: Password
     , iUserFiles :: [File]
     } deriving (Eq, Ord, Show, Read, Data, Typeable)
--- }}}
 
+-- = User groups
 -- | a group of users
--- {{{
 data Group = Group { groupName :: GroupName
                    , users :: [UserName]
                    }
@@ -129,43 +125,39 @@ data Group = Group { groupName :: GroupName
 instance ToJSON Group where
     toJSON (Group n u) = object ["name" .= n, "members" .= u]
 
--- }}}
-
+-- == Internal group representation
 -- | internal representation of a group
--- {{{
 data InternalGroup = InternalGroup
     { iGroupName :: GroupName
     , iUsers :: [UserName]
     , iGroupFiles :: [File] -- maybe we should rather use a Set
     } deriving (Eq, Ord, Show, Read, Data, Typeable)
 
--- }}}
-
+-- = Files
 -- | a file
--- {{{
 data File = File
     { fileName :: FileName
     , fileContents :: FileContent
     } deriving (Show, Read, Data, Typeable)
 
+-- | We only need to check for equality by name, since we just look whether
+-- files with a certain name exist.
 instance Eq File where
     a == b = fileName a == fileName b
 
+-- | Ordering is name-oriented as well.
 instance Ord File where
     a <= b = fileName a <= fileName b
 
--- | To encode files in JSON, we need to encode newlines on the fly 
 instance ToJSON File where
     toJSON (File n c) = object ["name" .= n, "content" .= c]
 
--- | To decode files from JSON, we need to decode newlines on the fly
 instance FromJSON File where
     parseJSON (Object v) = File <$> v .: "name" <*> v .: "content"
     parseJSON _ = mempty
--- }}}
 
--- | a list of files, possibly owned by up to one user and zero or more groups
--- {{{
+-- == File lists
+-- | a list of files belonging to a specific group
 data GroupFileList = GroupFileList { gFileListName :: GroupName
                                    , gFileListFiles :: [FileName]
                                    }
@@ -178,6 +170,7 @@ instance ToJSON GroupFileList where
     toJSON (GroupFileList gName gFiles) =
         object [ "group" .= gName, "files" .= gFiles]
 
+-- | a list of files, possibly owned by up to one user and zero or more groups
 data FileList = FileList
     { fUserFiles :: [FileName]
     , fGroupFiles :: [GroupFileList]
@@ -194,10 +187,9 @@ instance ToJSON FileList where
                , "group_files" .= gFiles
                ]
 
--- }}}
-
--- | a request to push a file
--- {{{
+-- = Request types and intermediate data
+-- == Pushing files
+-- | a request to push a file to a user's filestore
 data PushURequest = PushURequest { pURqUser :: User
                                  , pURqFile :: File
                                  }
@@ -209,6 +201,7 @@ instance FromJSON PushURequest where
 
 type PushUData = (Maybe InternalUser, File)
 
+-- | a request to push a file to a group's filestore
 data PushGRequest = PushGRequest { pGRqUser :: User
                                  , pGRqGroup :: GroupName
                                  , pGRqFile :: File
@@ -221,18 +214,16 @@ instance FromJSON PushGRequest where
     parseJSON _ = mempty
 
 type PushGData = (Maybe InternalUser, Maybe InternalGroup, File)
--- }}}
 
+-- == Listing files belonging to a user
 -- | A request to list all available files
--- {{{
 newtype ListRequest = ListRequest { lRqUser :: User }
     deriving FromJSON
 
 type ListData = (Maybe InternalUser, [InternalGroup])
--- }}}
 
--- | A request to pull a file
--- {{{
+-- == Pulling files
+-- | A request to pull a file from a user's filestore
 data PullURequest = PullURequest { fURqUser :: User
                                  , fURqFileName :: FileName
                                  }
@@ -244,6 +235,7 @@ instance FromJSON PullURequest where
 
 type PullUData = (Maybe InternalUser, FileName)
 
+-- | A request to pull a file from a group's filestore
 data PullGRequest = PullGRequest { fGRqUser :: User
                                  , fGRqGroup :: GroupName
                                  , fGRqFileName :: FileName
@@ -256,10 +248,8 @@ instance FromJSON PullGRequest where
 
 type PullGData = (Maybe InternalUser, Maybe InternalGroup, FileName)
 
--- }}}
-
+-- == Adding groups
 -- | A request to create a group
--- {{{
 data GroupNewRequest = GroupNewRequest { gRqUser :: User
                                        , gRqGroupName ::  GroupName
                                        }
@@ -270,10 +260,9 @@ instance FromJSON GroupNewRequest where
     parseJSON _ = mempty
 
 type GroupNewData = (Maybe InternalUser, GroupName, Maybe InternalGroup)
--- }}}
 
+-- == Adding users to groups
 -- | A request to add a fellow user to a group
--- {{{
 data GroupAddRequest = GroupAddRequest { gaRqUser :: User
                                        , gaRqGroup ::  GroupName
                                        , gaRqUserName :: UserName
@@ -289,10 +278,8 @@ instance FromJSON GroupAddRequest where
 type GroupAddData =
     (Maybe InternalUser, Maybe InternalGroup, Maybe InternalUser)
 
--- }}}
-
+-- == Processing files to an agenda or outline
 -- | A request to get an agenda or outline for a set of files
--- {{{
 data ProcessingRequest = ProcessingRequest { prRqUser :: User
                                            , prRqOptions ::  O.SimpleOptions
                                            , prRqFiles :: FileList
@@ -313,10 +300,9 @@ instance FromJSON ProcessingRequest' where
         (v .: "user" >>= parseJSON) <*>
         (v .: "options" >>= parseJSON) <*>
         v .: "files"
--- }}}
 
+-- == Authentication
 -- | A username and a password
--- {{{
 data Credentials = Credentials { uName :: UserName
                                , uPass :: Password
                                }
@@ -324,33 +310,33 @@ data Credentials = Credentials { uName :: UserName
 instance FromJSON Credentials where
     parseJSON (Object v) = Credentials <$> v .: "name" <*> v .: "password"
     parseJSON _ = mempty
--- }}}
 
--- | types for signing in and up
--- {{{
+-- | Request to sign up a new user, as used /internally/
 data SignUpRequest = SignUpRequest { suRqCreds :: Credentials
                                    , suApiKey :: ApiKey
                                    , suSalt :: Salt
                                    }
 
+-- | Request to sign up a new user, as passed to the API 
 newtype SignUpRequest' = SignUpRequest' { suRqCreds' :: Credentials }
     deriving FromJSON
 
 type SignUpData = (SignUpRequest, Maybe InternalUser)
 
+-- | Request to authenticate as an existing user, as used /internally/
 data SignInRequest = SignInRequest { siRqCreds :: Credentials
                                    , siApiKey :: ApiKey
                                    }
 
+-- | Request to authenticate as an existing user, as pased to the API
 newtype SignInRequest' = SignInRequest' { siRqCreds' :: Credentials }
     deriving FromJSON
 
 type SignInData = (Password, Maybe InternalUser, ApiKey)
 
--- }}}
 
+-- = API structure
 -- | an error returned by the API
--- {{{
 data ApiError = BadRequest
               | AuthError
               | NoAccess
@@ -369,24 +355,23 @@ instance ToJSON ApiError where
     toJSON a = String . T.pack $ show a
 
 -- | a response as returned by the API
--- {{{
 newtype ApiResponse r = ApiResponse (Either ApiError r)
     deriving (Functor, Applicative, Monad, Foldable, Traversable)
 
--- | convert API responses to JSON
 instance ToJSON r => ToJSON (ApiResponse r) where
     toJSON (ApiResponse (Left e)) =
         object ["result" .= Null, "error" .= e]
     toJSON (ApiResponse (Right r)) =
         object ["result" .= r, "error" .= Null]
--- }}}
 
+-- = State datatypes used in the datastore
 -- | our main application
 data Morgue = Morgue { allUsers :: IxSet InternalUser
                      , allGroups :: IxSet InternalGroup
                      }
 
--- {{{ derive SafeCopy instances for our types
+-- = 'SafeCopy' instances for all types in need
+-- derive 'SafeCopy' instances for our types
 $(deriveSafeCopy 0 'base ''O.SimpleOptions)
 $(deriveSafeCopy 0 'base ''OutputFormat)
 $(deriveSafeCopy 0 'base ''AgendaMode)
@@ -423,8 +408,8 @@ $(deriveSafeCopy 0 'base ''ProcessingRequest)
 
 $(deriveSafeCopy 0 'base ''ApiError)
 $(deriveSafeCopy 0 'base ''ApiResponse)
--- }}}
 
+-- = 'Indexable' instances needed by the datastore
 -- | we want to index a user by his name, API key and names of his files
 instance Indexable InternalUser where
     empty = ixSet

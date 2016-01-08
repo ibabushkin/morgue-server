@@ -9,7 +9,7 @@ import Data.IxSet
 import Types
 import Util
 
--- {{{ utility functions
+-- = Utility functions
 
 -- | store a group, updating if told so
 packGroup :: Bool -> InternalGroup -> Update Morgue InternalGroup
@@ -28,16 +28,16 @@ storeGroup = packGroup False
 updateGroup :: InternalGroup -> Update Morgue InternalGroup
 updateGroup = packGroup True
 
+-- | conversion for public access
 toGroup :: InternalGroup -> Group
 toGroup = Group <$> iGroupName <*> iUsers
 
+-- | conversion for public access
 toGroupFileList :: InternalGroup -> GroupFileList
 toGroupFileList = GroupFileList <$> iGroupName <*>
     (map fileName . iGroupFiles)
--- }}}
 
--- {{{ creating new groups
-
+-- = Creating new groups
 -- | provide data needed for group creation
 groupNewProvider :: GroupNewRequest -> Query Morgue GroupNewData
 groupNewProvider (GroupNewRequest user groupName) = do
@@ -54,10 +54,7 @@ makeGroup (Just user, gName, Nothing) = success $
 makeGroup (Nothing, _, _) = failure AuthError
 makeGroup (_, _, Just _) = failure GroupExists
 
--- }}}
-
--- {{{ adding users to groups
-
+-- = Adding users to groups
 -- | providing data needed to add users to groups
 groupAddProvider :: GroupAddRequest -> Query Morgue GroupAddData
 groupAddProvider (GroupAddRequest user gName uName) = do
@@ -77,10 +74,7 @@ addUserToGroup (Nothing, _, _) = failure AuthError
 addUserToGroup (_, Nothing, _) = failure NoSuchGroup
 addUserToGroup (_, _, Nothing) = failure NoSuchUser
 
--- }}}
-
--- {{{ pushing files
-
+-- = Pushing files
 -- | providing data needed to push files
 pushGProvider :: PushGRequest -> Query Morgue PushGData
 pushGProvider (PushGRequest user gName file) = do
@@ -99,10 +93,7 @@ addFileToGroup (Just user, Just group, file)
 addFileToGroup (Nothing, _, _) = failure AuthError
 addFileToGroup (_, Nothing, _) = failure NoSuchGroup
 
--- }}}
-
--- {{{ pulling files
-
+-- = Pulling files
 -- | providing data needed to pull files
 pullGProvider :: PullGRequest -> Query Morgue PullGData
 pullGProvider (PullGRequest user gName fName) = do
@@ -121,5 +112,3 @@ getFileFromGroup (Just user, Just group, fName)
                     [] -> failure $ NoSuchFile fName
 getFileFromGroup (Nothing, _, _) = failure AuthError
 getFileFromGroup (_, Nothing, _) = failure NoSuchGroup
-
--- }}}
