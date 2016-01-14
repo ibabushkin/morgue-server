@@ -112,3 +112,26 @@ getFileFromGroup (Just user, Just group, fName)
                     _ -> failure $ NoSuchFile fName
 getFileFromGroup (Nothing, _, _) = failure AuthError
 getFileFromGroup (_, Nothing, _) = failure NoSuchGroup
+
+-- = patching files
+-- | provide data from a patching request
+patchGProvider :: PatchGRequest -> Query Morgue PatchGData
+patchGProvider (PatchGRequest user gName fName patch) = do
+    morgue <- ask
+    return ( getOne $ allUsers morgue @= user
+           , getOne $ allGroups morgue @= gName
+           , fName
+           , patch
+           )
+
+-- | process a patch in an impure fashion ;(
+processGPatch :: PatchGData -> IO (ApiResponse InternalGroup)
+processGPatch (Nothing, _, _, _) = return $ failure AuthError
+processGPatch (_, Nothing, _, _) = return $ failure NoAccess
+processGPatch (Just _, Just group@(InternalGroup _ _ gFiles), fName, patch) =
+    case matchFiles gFiles [fName] of
+      ApiResponse (Right [content]) -> do
+          newFile <- patchFile (File fName content) patch
+          return $ success group {
+              iGroupFiles = replaceFile gFiles newFile }
+      ApiResponse (Left err) -> return $ failure err

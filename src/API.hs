@@ -93,7 +93,9 @@ $(makeAcidic ''Morgue
   , 'list
   , 'processing
   , 'patchUProvider
+  , 'patchGProvider
   , 'updateUser
+  , 'updateGroup
   ])
 
 -- | combinator to wrap request pipelines into IO actions
@@ -121,6 +123,6 @@ externalActionIO acid eventA trans eventC f a = do
     c <- query acid (eventA a) >>= trans
     case c of
       ApiResponse (Left err) -> return $ failure err
-      (ApiResponse (Right c')) -> do
+      ApiResponse (Right c') -> do
           update acid (eventC c')
           return . success $ f c'

@@ -12,16 +12,10 @@ import Data.IxSet
 import qualified Data.Morgue.Agenda as A
 import qualified Data.Morgue.Outline as O
 import Data.Morgue.Options
-import Data.Text (pack, unpack, Text)
-import Data.Text.IO (hPutStr)
-import qualified Data.Text.IO as TIO
+import Data.Text (pack, unpack)
 import Data.Time
 
-import System.Directory (removeFile)
 import System.Entropy
-import System.IO (hClose)
-import System.IO.Temp (openTempFile)
-import System.Process
 
 import Group (toGroupFileList)
 import Types
@@ -185,26 +179,6 @@ processFiles (Just user, groups, FileList uFiles gFiles, opts, time, tz) =
                         SOutlineOptions{} -> O.getOutline opts'
 processFiles (Nothing, _, _, _, _, _) = failure AuthError
 
--- | get all matching files from a list and return an error in case of
--- missing files
-matchFiles :: [File] -> [FileName] -> ApiResponse [FileContent]
-matchFiles files = foldr go (success [])
-    where files' = map ((,) <$> fileName <*> id) files
-          go f fs = case lookup f files' of
-                      Just file -> (fileContents file:) <$> fs
-                      Nothing -> failure $ NoSuchFile f
-
--- | get all matching groups from a list and return an error in case of
--- missing groups
-matchGroups :: [InternalGroup]
-            -> [GroupFileList] -> ApiResponse [([File], [FileName])]
-matchGroups groups = foldr go (success [])
-    where groups' = map ((,) <$> iGroupName <*> id) groups
-          go (GroupFileList g fs) gs = case lookup g groups' of
-                                         Just gr ->
-                                             ((iGroupFiles gr, fs):) <$> gs
-                                         Nothing -> failure NoAccess
-
 -- = patching files
 -- | provide data from a patching request
 patchUProvider :: PatchURequest -> Query Morgue PatchUData
@@ -222,20 +196,5 @@ processUPatch (Just user@(InternalUser _ _ _ uFiles), fName, patch) =
     case matchFiles uFiles [fName] of
       ApiResponse (Right [content]) -> do
           newFile <- patchFile (File fName content) patch
-          let newFiles = foldr go [] uFiles 
-              go f@(File fN _) fs
-                  | fN == fName = newFile : fs
-                  | otherwise = f : fs
-          return $ success user { iUserFiles = newFiles }
+          return $ success user { iUserFiles = replaceFile uFiles newFile }
       ApiResponse (Left err) -> return $ failure err
-
--- | patch a file using the common UNIX utility
-patchFile :: File -> Text -> IO File
-patchFile file patch = do
-    (path, handle) <- openTempFile (unpack . getFName $ fileName file) ""
-    hPutStr handle (fileContents file)
-    hClose handle
-    output <- readProcess "patch" [path] (unpack patch)
-    newFile <- TIO.readFile path
-    removeFile path
-    return file { fileContents = newFile }

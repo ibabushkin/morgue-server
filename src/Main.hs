@@ -15,6 +15,7 @@ import API
 import Types
 import User ( toSignUpRequest, toSignInRequest
             , toProcessingRequest, processUPatch, toUser)
+import Group (processGPatch, toGroup)
 import Util
 
 -- | main application
@@ -53,6 +54,8 @@ groupApi acid = msum
    , dirGen "add"  $ actionIO acid GroupAdd
    , dirGen "push" $ actionIO acid PushG
    , dirGen "pull" $ actionIO acid PullG
+    , dirGen "patch" $ externalActionIO acid
+          PatchGProvider processGPatch UpdateGroup toGroup
    , e404
    ]
 

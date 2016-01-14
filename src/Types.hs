@@ -316,6 +316,8 @@ data PatchGRequest = PatchGRequest { paGRqUser :: User
                                    , paGRqPatch :: Text
                                    }
 
+type PatchGData = (Maybe InternalUser, Maybe InternalGroup, FileName, Text)
+
 instance FromJSON PatchGRequest where
     parseJSON (Object v) = PatchGRequest <$>
         (v .: "user" >>= parseJSON) <*>
@@ -428,6 +430,7 @@ $(deriveSafeCopy 0 'base ''GroupNewRequest)
 $(deriveSafeCopy 0 'base ''GroupAddRequest)
 $(deriveSafeCopy 0 'base ''ProcessingRequest)
 $(deriveSafeCopy 0 'base ''PatchURequest)
+$(deriveSafeCopy 0 'base ''PatchGRequest)
 
 $(deriveSafeCopy 0 'base ''ApiError)
 $(deriveSafeCopy 0 'base ''ApiResponse)
