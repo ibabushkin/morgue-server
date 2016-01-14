@@ -12,10 +12,16 @@ import Data.IxSet
 import qualified Data.Morgue.Agenda as A
 import qualified Data.Morgue.Outline as O
 import Data.Morgue.Options
-import Data.Text (pack, unpack)
+import Data.Text (pack, unpack, Text)
+import Data.Text.IO (hPutStr)
+import qualified Data.Text.IO as TIO
 import Data.Time
 
+import System.Directory (removeFile)
 import System.Entropy
+import System.IO (hClose)
+import System.IO.Temp (openTempFile)
+import System.Process
 
 import Group (toGroupFileList)
 import Types
@@ -198,3 +204,38 @@ matchGroups groups = foldr go (success [])
                                          Just gr ->
                                              ((iGroupFiles gr, fs):) <$> gs
                                          Nothing -> failure NoAccess
+
+-- = patching files
+-- | provide data from a patching request
+patchUProvider :: PatchURequest -> Query Morgue PatchUData
+patchUProvider (PatchURequest user fName patch) = do
+    morgue <- ask
+    return ( getOne $ allUsers morgue @= user
+           , fName
+           , patch
+           )
+
+-- | process a patch in an impure fashion ;(
+processUPatch :: PatchUData -> IO (ApiResponse InternalUser)
+processUPatch (Nothing, _, _) = return $ failure AuthError
+processUPatch (Just user@(InternalUser _ _ _ uFiles), fName, patch) =
+    case matchFiles uFiles [fName] of
+      ApiResponse (Right [content]) -> do
+          newFile <- patchFile (File fName content) patch
+          let newFiles = foldr go [] uFiles 
+              go f@(File fN _) fs
+                  | fN == fName = newFile : fs
+                  | otherwise = f : fs
+          return $ success user { iUserFiles = newFiles }
+      ApiResponse (Left err) -> return $ failure err
+
+-- | patch a file using the common UNIX utility
+patchFile :: File -> Text -> IO File
+patchFile file patch = do
+    (path, handle) <- openTempFile (unpack . getFName $ fileName file) ""
+    hPutStr handle (fileContents file)
+    hClose handle
+    output <- readProcess "patch" [path] (unpack patch)
+    newFile <- TIO.readFile path
+    removeFile path
+    return file { fileContents = newFile }

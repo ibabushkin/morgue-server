@@ -17,6 +17,9 @@ modeSpec = describe "Types.FromJSON AgendaMode" $
     it "fails on wrong input" $ do
         (fromJSON (String "abd") :: Result AgendaMode)
         `shouldBe` (Error "mempty")
+    it "succeeds on ok input" $ do
+        (fromJSON (String "Todo") :: Result AgendaMode)
+        `shouldBe` (Success Todo)
 
 formatSpec :: Spec
 formatSpec = describe "Types.FromJSON OutputFormat" $

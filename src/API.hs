@@ -92,6 +92,8 @@ $(makeAcidic ''Morgue
   , 'pullG
   , 'list
   , 'processing
+  , 'patchUProvider
+  , 'updateUser
   ])
 
 -- | combinator to wrap request pipelines into IO actions
@@ -101,3 +103,24 @@ actionIO :: ( UpdateEvent event
          => AcidState Morgue
          -> (a -> event) -> a -> IO (ApiResponse b)
 actionIO acid func = update acid . func
+
+-- | combinator to wrap IO actions into request pipelines and wrap those...
+externalActionIO :: ( QueryEvent eventA
+                    , EventState eventA ~ Morgue
+                    , EventResult eventA ~ b
+                    , UpdateEvent eventC
+                    , EventState eventC ~ Morgue
+                    , EventResult eventC ~ c)
+                 => AcidState Morgue
+                 -> (a -> eventA)
+                 -> (b -> IO (ApiResponse c))
+                 -> (c -> eventC)
+                 -> (c -> d) 
+                 -> a -> IO (ApiResponse d)
+externalActionIO acid eventA trans eventC f a = do
+    c <- query acid (eventA a) >>= trans
+    case c of
+      ApiResponse (Left err) -> return $ failure err
+      (ApiResponse (Right c')) -> do
+          update acid (eventC c')
+          return . success $ f c'

@@ -13,7 +13,8 @@ import Happstack.Server
 
 import API
 import Types
-import User (toSignUpRequest, toSignInRequest, toProcessingRequest)
+import User ( toSignUpRequest, toSignInRequest
+            , toProcessingRequest, processUPatch, toUser)
 import Util
 
 -- | main application
@@ -40,6 +41,8 @@ userApi acid = msum
     , dirGen "pull" $ actionIO acid PullU
     , dirGen "list" $ actionIO acid List
     , dirGen "agenda" $ toProcessingRequest >=> actionIO acid Processing
+    , dirGen "patch" $ externalActionIO acid
+          PatchUProvider processUPatch UpdateUser toUser
     , e404
     ]
 

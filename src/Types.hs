@@ -294,6 +294,35 @@ instance FromJSON ProcessingRequest' where
         v .: "files"
     parseJSON _ = mempty
 
+-- == Patching
+-- | Request to patch a user's file
+data PatchURequest = PatchURequest { paURqUser :: User
+                                   , paURqFile :: FileName
+                                   , paURqPatch :: Text
+                                   }
+
+type PatchUData = (Maybe InternalUser, FileName, Text)
+
+instance FromJSON PatchURequest where
+    parseJSON (Object v) = PatchURequest <$>
+        (v .: "user" >>= parseJSON) <*>
+        (v .: "file") <*>
+        v .: "patch"
+
+-- | Request to patch a group's file
+data PatchGRequest = PatchGRequest { paGRqUser :: User
+                                   , paGRqGroup :: GroupName
+                                   , paGRqFile :: FileName
+                                   , paGRqPatch :: Text
+                                   }
+
+instance FromJSON PatchGRequest where
+    parseJSON (Object v) = PatchGRequest <$>
+        (v .: "user" >>= parseJSON) <*>
+        (v .: "group") <*>
+        (v .: "file") <*>
+        v .: "patch"
+
 -- == Authentication
 -- | A username and a password
 data Credentials = Credentials { cName :: UserName
@@ -398,6 +427,7 @@ $(deriveSafeCopy 0 'base ''PullGRequest)
 $(deriveSafeCopy 0 'base ''GroupNewRequest)
 $(deriveSafeCopy 0 'base ''GroupAddRequest)
 $(deriveSafeCopy 0 'base ''ProcessingRequest)
+$(deriveSafeCopy 0 'base ''PatchURequest)
 
 $(deriveSafeCopy 0 'base ''ApiError)
 $(deriveSafeCopy 0 'base ''ApiResponse)
