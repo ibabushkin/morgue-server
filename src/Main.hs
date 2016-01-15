@@ -43,7 +43,7 @@ userApi acid = msum
     , dirGen "list" $ actionIO acid List
     , dirGen "agenda" $ toProcessingRequest >=> actionIO acid Processing
     , dirGen "patch" $ externalActionIO acid
-          PatchUProvider processUPatch UpdateUser toUser
+          PatchUProvider processUPatch UpdateUser
     , e404
     ]
 
@@ -55,7 +55,7 @@ groupApi acid = msum
    , dirGen "push" $ actionIO acid PushG
    , dirGen "pull" $ actionIO acid PullG
     , dirGen "patch" $ externalActionIO acid
-          PatchGProvider processGPatch UpdateGroup toGroup
+          PatchGProvider processGPatch UpdateGroup
    , e404
    ]
 

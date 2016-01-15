@@ -134,6 +134,17 @@ session.
   * `AuthError` if the username / API key pair isn't valid
   * `NoSuchFile` if the given file does not exist
 
+#### Patch a file
+* URI `user/patch`
+* Parameters
+  * `user`: `User`
+  * `filename`: `String`
+  * `patch`: `String` - a patch as accepted by the tool `patch`.
+* Return value: `File`
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `NoSuchFile` if the given file does not exist
+
 #### List available files
 List all files that the user can access, both his own and of groups he is a
 member of.
@@ -222,3 +233,16 @@ would result in the following response if no errors occur.
   * `AuthError` if the username / API key pair isn't valid
   * `NoSuchFile` if the given file does not exist
   * `NoAccess` if the user isn't member of the group
+
+#### Patch a file
+* URI `group/patch`
+* Parameters
+  * `user`: `User`
+  * `group`: `String`
+  * `filename`: `String`
+  * `patch`: `String` - a patch as accepted by the tool `patch`.
+* Return value: `File`
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `NoAccess` if the user isn't member of the group
+  * `NoSuchFile` if the given file does not exist

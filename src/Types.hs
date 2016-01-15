@@ -306,7 +306,7 @@ type PatchUData = (Maybe InternalUser, FileName, Text)
 instance FromJSON PatchURequest where
     parseJSON (Object v) = PatchURequest <$>
         (v .: "user" >>= parseJSON) <*>
-        (v .: "file") <*>
+        (v .: "filename") <*>
         v .: "patch"
 
 -- | Request to patch a group's file
@@ -322,7 +322,7 @@ instance FromJSON PatchGRequest where
     parseJSON (Object v) = PatchGRequest <$>
         (v .: "user" >>= parseJSON) <*>
         (v .: "group") <*>
-        (v .: "file") <*>
+        (v .: "filename") <*>
         v .: "patch"
 
 -- == Authentication

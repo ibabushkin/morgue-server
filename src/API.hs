@@ -115,14 +115,13 @@ externalActionIO :: ( QueryEvent eventA
                     , EventResult eventC ~ c)
                  => AcidState Morgue
                  -> (a -> eventA)
-                 -> (b -> IO (ApiResponse c))
+                 -> (b -> IO (ApiResponse (c, d)))
                  -> (c -> eventC)
-                 -> (c -> d) 
                  -> a -> IO (ApiResponse d)
-externalActionIO acid eventA trans eventC f a = do
+externalActionIO acid eventA trans eventC a = do
     c <- query acid (eventA a) >>= trans
     case c of
       ApiResponse (Left err) -> return $ failure err
-      ApiResponse (Right c') -> do
+      ApiResponse (Right (c', r)) -> do
           update acid (eventC c')
-          return . success $ f c'
+          return $ success r

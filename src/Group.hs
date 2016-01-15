@@ -125,13 +125,13 @@ patchGProvider (PatchGRequest user gName fName patch) = do
            )
 
 -- | process a patch in an impure fashion ;(
-processGPatch :: PatchGData -> IO (ApiResponse InternalGroup)
+processGPatch :: PatchGData -> IO (ApiResponse (InternalGroup, File))
 processGPatch (Nothing, _, _, _) = return $ failure AuthError
 processGPatch (_, Nothing, _, _) = return $ failure NoAccess
 processGPatch (Just _, Just group@(InternalGroup _ _ gFiles), fName, patch) =
     case matchFiles gFiles [fName] of
       ApiResponse (Right [content]) -> do
           newFile <- patchFile (File fName content) patch
-          return $ success group {
-              iGroupFiles = replaceFile gFiles newFile }
+          return $ success
+              (group { iGroupFiles = replaceFile gFiles newFile }, newFile)
       ApiResponse (Left err) -> return $ failure err

@@ -34,6 +34,7 @@ liftStore :: (a -> Update Morgue b)
           -> ApiResponse a -> Update Morgue (ApiResponse b)
 liftStore f a = sequence $ f <$> a
 
+-- | initial state of our app
 initialMorgueState :: Morgue
 initialMorgueState = Morgue empty empty
 

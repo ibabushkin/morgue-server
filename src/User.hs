@@ -190,11 +190,12 @@ patchUProvider (PatchURequest user fName patch) = do
            )
 
 -- | process a patch in an impure fashion ;(
-processUPatch :: PatchUData -> IO (ApiResponse InternalUser)
+processUPatch :: PatchUData -> IO (ApiResponse (InternalUser, File))
 processUPatch (Nothing, _, _) = return $ failure AuthError
 processUPatch (Just user@(InternalUser _ _ _ uFiles), fName, patch) =
     case matchFiles uFiles [fName] of
       ApiResponse (Right [content]) -> do
           newFile <- patchFile (File fName content) patch
-          return $ success user { iUserFiles = replaceFile uFiles newFile }
+          return $ success
+              (user { iUserFiles = replaceFile uFiles newFile }, newFile)
       ApiResponse (Left err) -> return $ failure err
