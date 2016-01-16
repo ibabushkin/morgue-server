@@ -38,12 +38,16 @@ userApi :: AcidState Morgue -> ServerPart Response
 userApi acid = msum
     [ dirGen "new"  $ toSignUpRequest >=> actionIO acid SignUp
     , dirGen "auth" $ toSignInRequest >=> actionIO acid SignIn
-    , dirGen "push" $ actionIO acid PushU
-    , dirGen "pull" $ actionIO acid PullU
+    , dir "file" $ msum
+        [ dirGen "push" $ actionIO acid PushU
+        , dirGen "delete" $ actionIO acid DeleteU
+        , dirGen "pull" $ actionIO acid PullU
+        , dirGen "patch" $ externalActionIO acid
+            PatchUProvider processUPatch UpdateUser
+        , e404
+        ]
     , dirGen "list" $ actionIO acid List
     , dirGen "agenda" $ toProcessingRequest >=> actionIO acid Processing
-    , dirGen "patch" $ externalActionIO acid
-          PatchUProvider processUPatch UpdateUser
     , e404
     ]
 
@@ -52,10 +56,14 @@ groupApi :: AcidState Morgue -> ServerPart Response
 groupApi acid = msum
    [ dirGen "new"  $ actionIO acid GroupNew
    , dirGen "add"  $ actionIO acid GroupAdd
-   , dirGen "push" $ actionIO acid PushG
-   , dirGen "pull" $ actionIO acid PullG
-    , dirGen "patch" $ externalActionIO acid
-          PatchGProvider processGPatch UpdateGroup
+   , dir "file" $ msum
+       [ dirGen "push" $ actionIO acid PushG
+       , dirGen "delete" $ actionIO acid DeleteG
+       , dirGen "pull" $ actionIO acid PullG
+       , dirGen "patch" $ externalActionIO acid
+               PatchGProvider processGPatch UpdateGroup
+       , e404
+       ]
    , e404
    ]
 

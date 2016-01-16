@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module User where
 
 import Control.Monad.Reader (ask)
@@ -8,7 +9,8 @@ import Crypto.Scrypt
 import Data.Acid (Query, Update)
 import qualified Data.ByteString.Lazy as B
 import Data.Digest.Pure.SHA
-import Data.IxSet
+import Data.IxSet hiding (delete)
+import Data.List (delete)
 import qualified Data.Morgue.Agenda as A
 import qualified Data.Morgue.Outline as O
 import Data.Morgue.Options
@@ -120,6 +122,22 @@ addFileToUser (Nothing, _) = failure AuthError
 -- | get a user's last file 
 getLastFile :: InternalUser -> FileName
 getLastFile = fileName . head . iUserFiles
+
+-- = Deleting a file
+-- | provide data from a user-delete request
+deleteUProvider :: DeleteURequest -> Query Morgue DeleteUData
+deleteUProvider (DeleteURequest user fName) = do
+    morgue <- ask
+    return (getOne $ allUsers morgue @= user, fName)
+
+-- | delete a file from a user's datastore
+deleteFileFromUser :: DeleteUData -> ApiResponse InternalUser
+deleteFileFromUser (Nothing, _) = failure AuthError
+deleteFilefromUser (Just user, fName)
+    | oldLen == length newFiles = failure $ NoSuchFile fName
+    | otherwise = success $ user { iUserFiles = newFiles }
+    where newFiles = delete (File fName "") (iUserFiles user)
+          oldLen = length $ iUserFiles user
 
 -- = Pulling a file
 -- | provide data from a user-pull request

@@ -50,6 +50,10 @@ signIn = run signInProvider loginUser (liftStore updateUser) toUser
 pushU :: PushURequest -> Update Morgue (ApiResponse FileName)
 pushU = run pushUProvider addFileToUser (liftStore updateUser) getLastFile
 
+-- | delete files from a user's datastore
+deleteU :: DeleteURequest -> Update Morgue (ApiResponse User)
+deleteU = run deleteUProvider deleteFileFromUser (liftStore updateUser) toUser
+
 -- | pulling files from a user's datastore
 pullU :: PullURequest -> Update Morgue (ApiResponse File)
 pullU = run pullUProvider getFileFromUser return id
@@ -66,6 +70,11 @@ groupAdd = run groupAddProvider
 -- | pushing files to a group's datastore
 pushG :: PushGRequest -> Update Morgue (ApiResponse Group)
 pushG = run pushGProvider addFileToGroup (liftStore updateGroup) toGroup
+
+-- | delete files from a group's datastore
+deleteG :: DeleteGRequest -> Update Morgue (ApiResponse Group)
+deleteG =
+    run deleteGProvider deleteFileFromGroup (liftStore updateGroup) toGroup
 
 -- | pulling files from a group's datastore
 pullG :: PullGRequest -> Update Morgue (ApiResponse File)
@@ -85,10 +94,12 @@ $(makeAcidic ''Morgue
   [ 'signUp
   , 'signIn
   , 'pushU
+  , 'deleteU
   , 'pullU
   , 'groupNew
   , 'groupAdd
   , 'pushG
+  , 'deleteG
   , 'pullG
   , 'list
   , 'processing

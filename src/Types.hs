@@ -41,9 +41,10 @@ newtype GroupName = GroupName { getGName :: Text }
 newtype FileName = FileName { getFName :: Text }
     deriving (Show, Read, Eq, Ord, Data, FromJSON, ToJSON)
 
+-- = type synonyms for less ambiguity
 type FileContent = Text
 type ApiKey = Text
-type Password = ByteString -- TODO: Text?
+type Password = ByteString
 
 -- = To/FromJSON instances for elementar types and things exported by morgue
 instance FromJSON ByteString where
@@ -206,6 +207,30 @@ instance FromJSON PushGRequest where
     parseJSON _ = mempty
 
 type PushGData = (Maybe InternalUser, Maybe InternalGroup, File)
+
+-- == Deleting files belonging to a user
+-- | A request to remove a file by name
+data DeleteURequest = DeleteURequest { dUUser :: User
+                                     , dUFileName :: FileName
+                                     }
+
+type DeleteUData = (Maybe InternalUser, FileName)
+
+instance FromJSON DeleteURequest where
+    parseJSON (Object v) = DeleteURequest <$>
+        (v .: "user" >>= parseJSON) <*> v .: "filename"
+    parseJSON _ = mempty
+
+data DeleteGRequest = DeleteGRequest { dGUser :: User
+                                     , dGGroupName :: GroupName
+                                     , dGFileName :: FileName
+                                     }
+
+type DeleteGData = (Maybe InternalUser, Maybe InternalGroup, FileName)
+
+instance FromJSON DeleteGRequest where
+    parseJSON (Object v) = DeleteGRequest <$>
+        (v .: "user" >>= parseJSON) <*> v .: "group" <*> v .: "filename"
 
 -- == Listing files belonging to a user
 -- | A request to list all available files
@@ -382,7 +407,7 @@ instance ToJSON ApiError where
 
 -- | a response as returned by the API
 newtype ApiResponse r = ApiResponse (Either ApiError r)
-    deriving (Functor, Applicative, Monad, Foldable, Traversable)
+    deriving (Eq, Show, Functor, Applicative, Monad, Foldable, Traversable)
 
 instance ToJSON r => ToJSON (ApiResponse r) where
     toJSON (ApiResponse (Left e)) =
@@ -426,6 +451,8 @@ $(deriveSafeCopy 0 'base ''SignInRequest)
 $(deriveSafeCopy 0 'base ''ListRequest)
 $(deriveSafeCopy 0 'base ''PushURequest)
 $(deriveSafeCopy 0 'base ''PushGRequest)
+$(deriveSafeCopy 0 'base ''DeleteURequest)
+$(deriveSafeCopy 0 'base ''DeleteGRequest)
 $(deriveSafeCopy 0 'base ''PullURequest)
 $(deriveSafeCopy 0 'base ''PullGRequest)
 $(deriveSafeCopy 0 'base ''GroupNewRequest)

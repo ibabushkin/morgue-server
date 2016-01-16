@@ -1,10 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Group where
 
 import Control.Monad.Reader (ask)
 import Control.Monad.State (get, put)
 
 import Data.Acid (Query, Update)
-import Data.IxSet
+import Data.IxSet hiding (delete)
+import Data.List (delete)
 
 import Types
 import Util
@@ -92,6 +94,27 @@ addFileToGroup (Just user, Just group, file)
     | otherwise = success $ group { iGroupFiles = file : iGroupFiles group }
 addFileToGroup (Nothing, _, _) = failure AuthError
 addFileToGroup (_, Nothing, _) = failure NoSuchGroup
+
+-- = Deleting files
+-- | provide data from a group-delete request
+deleteGProvider :: DeleteGRequest -> Query Morgue DeleteGData
+deleteGProvider (DeleteGRequest user gName fName) = do
+    morgue <- ask
+    return ( getOne $ allUsers morgue @= user
+           , getOne $ allGroups morgue @= gName
+           , fName
+           )
+
+-- | delete a file from a group's datastore
+deleteFileFromGroup :: DeleteGData -> ApiResponse InternalGroup
+deleteFileFromGroup (Nothing, _, _) = failure AuthError
+deleteFileFromGroup (_, Nothing, _) = failure NoSuchGroup
+deleteFileFromGroup (Just user, Just group, fName)
+    | iUserName user `notElem` iUsers group = failure NoAccess
+    | oldLen == length newFiles = failure $ NoSuchFile fName
+    | otherwise = success $ group { iGroupFiles = newFiles }
+    where newFiles = delete (File fName "") (iGroupFiles group)
+          oldLen = length $ iGroupFiles group
 
 -- = Pulling files
 -- | providing data needed to pull files

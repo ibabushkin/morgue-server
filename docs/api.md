@@ -115,7 +115,7 @@ session.
   * `AuthError` if the credentials aren't valid
 
 #### Upload a file
-* URI: `user/push`
+* URI: `user/file/push`
 * Parameters
   * `user`: `User`
   * `file`: `File` 
@@ -124,8 +124,18 @@ session.
   * `AuthError` if the username / API key pair isn't valid
   * `FileExists` if the file exists already
 
+#### Delete a file
+* URI: `user/file/delete`
+* Parameters
+  * `user`: `User`
+  * `filename`: `String`
+* Return value: `String` - the filename
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `NoSuchFile` if the file to be deleted doesn't exist
+
 #### Get a file's content
-* URI: `user/pull`
+* URI: `user/file/pull`
 * Parameters
   * `user`: `User`
   * `filename`: `String`
@@ -135,7 +145,7 @@ session.
   * `NoSuchFile` if the given file does not exist
 
 #### Patch a file
-* URI `user/patch`
+* URI `user/file/patch`
 * Parameters
   * `user`: `User`
   * `filename`: `String`
@@ -211,7 +221,7 @@ would result in the following response if no errors occur.
   * `MemberExists` if the user to be added is already a member
 
 #### Upload a file
-* URI: `group/push`
+* URI: `group/file/push`
 * Parameters
   * `user`: `User`
   * `group`: `String`
@@ -223,7 +233,19 @@ would result in the following response if no errors occur.
   * `NoAccess` if the user isn't member of the group
 
 #### Get a file's content
-* URI: `group/pull`
+* URI: `group/file/delete`
+* Parameters
+  * `user`: `User`
+  * `group`: `String`
+  * `filename`: `String`
+* Return value: `File`
+* Errors
+  * `AuthError` if the username / API key pair isn't valid
+  * `NoSuchFile` if the given file does not exist
+  * `NoAccess` if the user isn't member of the group
+
+#### Get a file's content
+* URI: `group/file/pull`
 * Parameters
   * `user`: `User`
   * `group`: `String`
@@ -235,7 +257,7 @@ would result in the following response if no errors occur.
   * `NoAccess` if the user isn't member of the group
 
 #### Patch a file
-* URI `group/patch`
+* URI `group/file/patch`
 * Parameters
   * `user`: `User`
   * `group`: `String`
