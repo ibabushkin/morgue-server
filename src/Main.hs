@@ -14,8 +14,8 @@ import Happstack.Server
 import API
 import Types
 import User ( toSignUpRequest, toSignInRequest
-            , toProcessingRequest, processUPatch, toUser)
-import Group (processGPatch, toGroup)
+            , toProcessingRequest, processUPatch)
+import Group (processGPatch)
 import Util
 
 -- | main application

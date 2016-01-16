@@ -134,4 +134,5 @@ processGPatch (Just _, Just group@(InternalGroup _ _ gFiles), fName, patch) =
           newFile <- patchFile (File fName content) patch
           return $ success
               (group { iGroupFiles = replaceFile gFiles newFile }, newFile)
+      ApiResponse (Right _) -> return . failure $ NoSuchFile fName
       ApiResponse (Left err) -> return $ failure err

@@ -198,4 +198,5 @@ processUPatch (Just user@(InternalUser _ _ _ uFiles), fName, patch) =
           newFile <- patchFile (File fName content) patch
           return $ success
               (user { iUserFiles = replaceFile uFiles newFile }, newFile)
+      ApiResponse (Right _) -> return . failure $ NoSuchFile fName
       ApiResponse (Left err) -> return $ failure err

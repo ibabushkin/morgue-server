@@ -43,7 +43,7 @@ newtype FileName = FileName { getFName :: Text }
 
 type FileContent = Text
 type ApiKey = Text
-type Password = ByteString
+type Password = ByteString -- TODO: Text?
 
 -- = To/FromJSON instances for elementar types and things exported by morgue
 instance FromJSON ByteString where
@@ -308,6 +308,7 @@ instance FromJSON PatchURequest where
         (v .: "user" >>= parseJSON) <*>
         (v .: "filename") <*>
         v .: "patch"
+    parseJSON _ = mempty
 
 -- | Request to patch a group's file
 data PatchGRequest = PatchGRequest { paGRqUser :: User
@@ -324,6 +325,7 @@ instance FromJSON PatchGRequest where
         (v .: "group") <*>
         (v .: "filename") <*>
         v .: "patch"
+    parseJSON _ = mempty
 
 -- == Authentication
 -- | A username and a password

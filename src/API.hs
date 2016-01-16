@@ -122,6 +122,5 @@ externalActionIO acid eventA trans eventC a = do
     c <- query acid (eventA a) >>= trans
     case c of
       ApiResponse (Left err) -> return $ failure err
-      ApiResponse (Right (c', r)) -> do
-          update acid (eventC c')
-          return $ success r
+      ApiResponse (Right (c', r)) ->
+          update acid (eventC c') >> return (success r)
