@@ -87,4 +87,5 @@ test-suite spec
   build-depends:       base,
                        morgue-server,
                        hspec,
-                       QuickCheck
+                       QuickCheck,
+                       quickcheck-instances

@@ -152,7 +152,7 @@ instance FromJSON File where
 -- | a list of files belonging to a specific group
 data GroupFileList = GroupFileList { gFileListName :: GroupName
                                    , gFileListFiles :: [FileName]
-                                   }
+                                   } deriving (Eq, Show)
 
 instance FromJSON GroupFileList where
     parseJSON (Object v) = GroupFileList <$>

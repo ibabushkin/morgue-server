@@ -24,7 +24,8 @@ type Provider r i = r -> Query Morgue i
 type Processor i r = i -> ApiResponse r
 -- | store the data and optionally transform it to something else
 type StorageBackend r' = ApiResponse r' -> Update Morgue (ApiResponse r')
--- | transform the result of an API call to something suited for the caller's eyes
+-- | transform the result of an API call to something
+-- suited for the caller's eyes
 type Transformer r' r = r' -> r
 
 -- = Combinator(s) for API building

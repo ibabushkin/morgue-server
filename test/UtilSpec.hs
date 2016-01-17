@@ -1,10 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
 module UtilSpec where
 
 import Test.Hspec
+import Test.QuickCheck
 
 import Types
 import Util
+
+import Default
 
 -- | main spec
 spec :: Spec
@@ -13,60 +15,40 @@ spec = describe "Util" $ do
     groupMatchSpec
     fileReplaceSpec
 
--- = default values
-defaultUserName = FileName "name"
-
-defaultFileName = FileName "name"
-defaultFileName2 = FileName "name2"
-defaultContent = "def"
-defaultFile = File defaultFileName defaultContent
-defaultFile2 = File defaultFileName2 defaultContent
-
-defaultGroupName = GroupName "name"
-defaultGroup = InternalGroup defaultGroupName [] [defaultFile]
-defaultGroup2 = InternalGroup defaultGroupName [] [defaultFile2]
-defaultGFList = GroupFileList defaultGroupName [defaultFileName]
-
 -- = specs
 -- | matchFile spec
 fileMatchSpec :: Spec
 fileMatchSpec = describe "Util.matchFiles" $ do
     it "handles empty queries and file lists correctly" $
-        matchFiles [] [] `shouldBe` success []
-    it "handles empty queries correctly" $
-        matchFiles [defaultFile] [] `shouldBe` success []
-    it "handles empty file lists correctly" $
-        matchFiles [] [defaultFileName] `shouldBe`
-        failure (NoSuchFile defaultFileName)
-    it "handles normal input correctly" $
-        matchFiles [defaultFile] [defaultFileName] `shouldBe`
-        success [defaultContent]
+        matchFiles [] [] == success []
+    it "handles empty queries correctly" $ property $
+        \fs -> matchFiles fs [] == success []
+    it "handles empty file lists correctly" $ property $
+        \(NonEmpty fs@(f:fss)) -> matchFiles [] fs == failure (NoSuchFile f)
+    it "processes all input given unique file data" $ property $
+        forAll ((,) <$> uniqueFileGen <*> arbitrary) $
+        \(fs, Positive n) -> n < length fs ==>
+            let files = take n fs
+             in matchFiles fs (map fileName files)
+                    == success (map fileContents files)
 
 -- | matchGroup spec
 groupMatchSpec :: Spec
 groupMatchSpec = describe "Util.matchGroups" $ do
     it "handles empty queries and group lists correctly" $
-        matchGroups [] [] `shouldBe` success []
-    it "handles empty queries correctly" $
-        matchGroups [defaultGroup] [] `shouldBe` success []
-    it "handles empty group lists correctly" $
-        matchGroups [] [defaultGFList] `shouldBe` failure NoAccess
-    it "handles empty illegal input correctly" $
-        matchGroups [defaultGroup2] [defaultGFList] `shouldBe`
-        success [([defaultFile2], [defaultFileName])]
-    it "handles normal input correctly" $
-        matchGroups [defaultGroup] [defaultGFList] `shouldBe`
-        success [([defaultFile], [defaultFileName])]
+        matchGroups [] [] == success []
+    it "handles empty queries correctly" $ property $
+        \gs -> matchGroups gs [] == success []
+    it "handles empty group lists correctly" $ property $
+        \(NonEmpty gfs) -> matchGroups [] gfs == failure NoAccess
+    it "handles normal input correctly" $ pendingWith "think about it"
 
 -- | replaceFile spec
 fileReplaceSpec :: Spec
 fileReplaceSpec = describe "Util.replaceFile" $ do
-    it "handles empty file lists" $
-        replaceFile [] defaultFile `shouldBe` []
-    it "doesn't touch other files" $
-        replaceFile [defaultFile] defaultFile2 `shouldBe` [defaultFile]
-    it "replaces files passed" $
-        replaceFile [defaultFile] defaultFile `shouldBe` [defaultFile]
-    it "honours invariants: length" $
-        replaceFile [defaultFile] defaultFile `shouldSatisfy` (==1) . length
-        -- TODO: use quickcheck here
+    it "handles empty file lists" $ property $
+        \f -> replaceFile [] f == []
+    it "doesn't touch other files" $ property $
+        \(fs, f) -> f `notElem` fs ==> replaceFile fs f == fs
+    it "honours invariants: length" $ property $
+        \(fs, f) -> length (replaceFile fs f) == length fs
