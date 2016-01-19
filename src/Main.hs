@@ -20,10 +20,8 @@ import Util
 
 -- | main application
 main :: IO ()
-main =
-    bracket (openLocalState initialMorgueState)
-            createCheckpointAndClose
-            (simpleHTTP nullConf . route)
+main = bracket (openLocalState initialMorgueState)
+    createCheckpointAndClose (simpleHTTP nullConf . route)
 
 -- | main application's route
 route :: AcidState Morgue -> ServerPart Response

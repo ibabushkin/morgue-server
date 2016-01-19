@@ -8,10 +8,10 @@ import Group
 
 -- | main spec
 spec :: Spec
-spec = describe "Group" $ do
+spec = describe "Group" $
     makeGroupSpec
 
 makeGroupSpec :: Spec
-makeGroupSpec = describe "Group.makeGroup" $ do
+makeGroupSpec = describe "Group.makeGroup" $
     it "throws errors appropriately" $
         pendingWith "use quickcheck"

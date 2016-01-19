@@ -24,6 +24,8 @@ import Types
 import Util
 
 -- = Utility functions
+
+-- TODO: maybe incorporate user data (or use JWT and STFU)
 -- | generate a user's API key
 genApiKey :: IO ApiKey
 genApiKey = pack . showDigest <$> (hmacSha256 <$>

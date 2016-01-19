@@ -47,7 +47,7 @@ groupMatchSpec = describe "Util.matchGroups" $ do
 fileReplaceSpec :: Spec
 fileReplaceSpec = describe "Util.replaceFile" $ do
     it "handles empty file lists" $ property $
-        \f -> replaceFile [] f == []
+        \f -> null (replaceFile [] f)
     it "doesn't touch other files" $ property $
         \(fs, f) -> f `notElem` fs ==> replaceFile fs f == fs
     it "honours invariants: length" $ property $
